@@ -28,7 +28,7 @@ def chat(user_message):
     """
     # Add the user's message to history
     conversation_history.append({"role": "user", "content": user_message})
-
+    
     # Make the API call. We send:
     # - model: which Claude model to use
     # - max_tokens: maximum length of the response
