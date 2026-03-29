@@ -1,39 +1,51 @@
+import os
+import asyncio
 from dotenv import load_dotenv
 from anthropic import Anthropic
 from prompts import SYSTEM_PROMPT
-from tools import TOOLS, TOOL_FUNCTIONS
 from loop import Agent
+from mcp_client import MCPClient
 
-# Load the API key from .env into environment variables
 load_dotenv()
 
-# Create the Anthropic client and the agent
-client = Anthropic()
-agent = Agent(client, SYSTEM_PROMPT, TOOLS, TOOL_FUNCTIONS)
+# Path to the Paper Parser MCP server
+PAPER_PARSER_SERVER = os.path.join(
+    os.path.dirname(__file__),
+    "..", "mcp_servers", "paper_parser", "server.py"
+)
 
 
-def main():
-    """Main conversation loop — handles user input/output only.
+async def main():
+    client = Anthropic()
+    mcp = MCPClient()
 
-    The agent logic (API calls, tool execution) lives in loop.py.
-    This function just collects input and displays output.
-    """
-    print("Paper Mind Agent — Phase 1")
+    # Connect to the Paper Parser MCP server
+    print("Starting Paper Parser MCP server...")
+    tools = await mcp.connect_to_server(PAPER_PARSER_SERVER)
+    print(f"Connected. Available tools: {tools}\n")
+
+    # Create the agent with MCP tools
+    agent = Agent(client, SYSTEM_PROMPT, mcp_client=mcp)
+
+    print("Paper Mind Agent — Phase 2")
     print("Type 'quit' to exit.\n")
 
-    while True:
-        user_input = input("You: ").strip()
+    try:
+        while True:
+            user_input = input("You: ").strip()
 
-        if not user_input:
-            continue
+            if not user_input:
+                continue
 
-        if user_input.lower() == "quit":
-            print("Goodbye!")
-            break
+            if user_input.lower() == "quit":
+                print("Goodbye!")
+                break
 
-        response = agent.chat(user_input)
-        print(f"\nAssistant: {response}\n")
+            response = await agent.chat_async(user_input)
+            print(f"\nAssistant: {response}\n")
+    finally:
+        await mcp.cleanup()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

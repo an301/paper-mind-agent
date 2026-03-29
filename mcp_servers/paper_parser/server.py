@@ -71,18 +71,28 @@ def get_section(section_name: str, paper_id: str = "default") -> str:
 # read so far, but nothing after their current position.
 
 @server.tool()
-def get_sections_up_to(section_name: str, paper_id: str = "default") -> str:
+def get_sections_up_to(section_name: str = "", paper_id: str = "default") -> str:
     """Retrieve all sections from the beginning up to and including
     the specified section. Use this to respect the user's reading
     position — only provide information from sections they've read.
 
+    If no section_name is provided, returns all sections the user
+    has read so far (based on automatic reading position tracking).
+
     Args:
-        section_name: The last section the user has read
+        section_name: The last section to include (optional — defaults to current reading position)
         paper_id: Optional paper identifier
     """
     paper = store.get_paper(paper_id)
     if not paper:
         return "Error: No paper loaded. Call parse_paper first."
+
+    # If no section specified, use the automatically tracked position
+    if not section_name:
+        read_sections = store.get_read_sections(paper_id)
+        if not read_sections:
+            return "No sections have been read yet."
+        return json.dumps(read_sections, indent=2)
 
     section_name = section_name.lower().strip()
     order = paper["section_order"]
@@ -98,6 +108,9 @@ def get_sections_up_to(section_name: str, paper_id: str = "default") -> str:
     for i in range(target_index + 1):
         name = order[i]
         result[name] = paper["sections"][name]
+
+    # Also update the reading position
+    store.update_read_position(section_name, paper_id)
 
     return json.dumps(result, indent=2)
 
