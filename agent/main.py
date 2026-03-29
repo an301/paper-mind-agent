@@ -8,10 +8,15 @@ from mcp_client import MCPClient
 
 load_dotenv()
 
-# Path to the Paper Parser MCP server
+# Paths to MCP servers
 PAPER_PARSER_SERVER = os.path.join(
     os.path.dirname(__file__),
     "..", "mcp_servers", "paper_parser", "server.py"
+)
+
+KNOWLEDGE_GRAPH_SERVER = os.path.join(
+    os.path.dirname(__file__),
+    "..", "mcp_servers", "knowledge_graph", "server.py"
 )
 
 
@@ -19,15 +24,21 @@ async def main():
     client = Anthropic()
     mcp = MCPClient()
 
-    # Connect to the Paper Parser MCP server
+    # Connect to MCP servers
     print("Starting Paper Parser MCP server...")
-    tools = await mcp.connect_to_server(PAPER_PARSER_SERVER)
-    print(f"Connected. Available tools: {tools}\n")
+    paper_tools = await mcp.connect_to_server(PAPER_PARSER_SERVER)
+    print(f"  Paper Parser tools: {paper_tools}")
 
-    # Create the agent with MCP tools
+    print("Starting Knowledge Graph MCP server...")
+    kg_tools = await mcp.connect_to_server(KNOWLEDGE_GRAPH_SERVER)
+    print(f"  Knowledge Graph tools: {kg_tools}")
+
+    print(f"\nAll tools loaded. Total: {len(paper_tools) + len(kg_tools)}\n")
+
+    # Create the agent with all MCP tools
     agent = Agent(client, SYSTEM_PROMPT, mcp_client=mcp)
 
-    print("Paper Mind Agent — Phase 2")
+    print("Research Mind — Phase 3")
     print("Type 'quit' to exit.\n")
 
     try:

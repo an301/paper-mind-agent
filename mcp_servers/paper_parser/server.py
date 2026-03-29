@@ -2,25 +2,20 @@ import json
 from mcp.server.fastmcp import FastMCP
 from parser import PaperStore
 
-# Create the MCP server with a name that identifies it
 server = FastMCP("paper-parser")
-
-# Create the paper store — shared across all tool calls
 store = PaperStore()
 
 
 # ============================================================
 # Tool 1: parse_paper
 # ============================================================
-# This must be called first. It loads a PDF, splits it into
-# sections, and stores it so other tools can access it.
 
 @server.tool()
 def parse_paper(pdf_path: str, paper_id: str = "default") -> str:
     """Parse a PDF research paper into sections.
 
     Must be called before using other paper tools.
-    Returns the list of detected sections.
+    Returns the title, authors, and list of detected sections.
 
     Args:
         pdf_path: Path to the PDF file on disk
@@ -38,15 +33,17 @@ def parse_paper(pdf_path: str, paper_id: str = "default") -> str:
 # ============================================================
 # Tool 2: get_section
 # ============================================================
-# Retrieves a single section by name.
 
 @server.tool()
 def get_section(section_name: str, paper_id: str = "default") -> str:
     """Retrieve a specific section from the parsed paper.
 
+    Automatically updates the reading position — the user has now
+    "seen" this section and everything before it.
+
     Args:
         section_name: Name of the section (e.g. 'abstract', 'introduction')
-        paper_id: Optional paper identifier (defaults to most recent paper)
+        paper_id: Optional paper identifier
     """
     paper = store.get_paper(paper_id)
     if not paper:
@@ -55,8 +52,6 @@ def get_section(section_name: str, paper_id: str = "default") -> str:
     section_name = section_name.lower().strip()
 
     if section_name in paper["sections"]:
-        # Automatically update reading position — the user has now
-        # "seen" this section and everything before it
         store.update_read_position(section_name, paper_id)
         return paper["sections"][section_name]
 
@@ -67,8 +62,6 @@ def get_section(section_name: str, paper_id: str = "default") -> str:
 # ============================================================
 # Tool 3: get_sections_up_to
 # ============================================================
-# The "no spoilers" tool. Returns everything the user has
-# read so far, but nothing after their current position.
 
 @server.tool()
 def get_sections_up_to(section_name: str = "", paper_id: str = "default") -> str:
@@ -80,14 +73,13 @@ def get_sections_up_to(section_name: str = "", paper_id: str = "default") -> str
     has read so far (based on automatic reading position tracking).
 
     Args:
-        section_name: The last section to include (optional — defaults to current reading position)
+        section_name: The last section to include (optional)
         paper_id: Optional paper identifier
     """
     paper = store.get_paper(paper_id)
     if not paper:
         return "Error: No paper loaded. Call parse_paper first."
 
-    # If no section specified, use the automatically tracked position
     if not section_name:
         read_sections = store.get_read_sections(paper_id)
         if not read_sections:
@@ -101,33 +93,27 @@ def get_sections_up_to(section_name: str = "", paper_id: str = "default") -> str
         available = ", ".join(order)
         return f"Section '{section_name}' not found. Available sections: {available}"
 
-    # Find the index of the target section, then return everything
-    # from the start up to and including that section.
     target_index = order.index(section_name)
     result = {}
     for i in range(target_index + 1):
         name = order[i]
         result[name] = paper["sections"][name]
 
-    # Also update the reading position
     store.update_read_position(section_name, paper_id)
-
     return json.dumps(result, indent=2)
 
 
 # ============================================================
 # Tool 4: search_paper
 # ============================================================
-# Simple keyword search within the paper. In Phase 5, this gets
-# replaced with semantic search using embeddings + FAISS.
 
 @server.tool()
 def search_paper(query: str, paper_id: str = "default") -> str:
     """Search the paper for paragraphs containing the query text.
     Returns matching paragraphs with their section names.
 
-    This is a simple keyword search. Will be upgraded to semantic
-    search with embeddings in Phase 5.
+    Currently keyword-based. Will be upgraded to semantic search
+    with embeddings in a later phase.
 
     Args:
         query: Text to search for in the paper
@@ -141,30 +127,30 @@ def search_paper(query: str, paper_id: str = "default") -> str:
     results = []
 
     for section_name, content in paper["sections"].items():
-        # Split section into paragraphs and check each one
         paragraphs = content.split("\n\n")
         for paragraph in paragraphs:
             if query_lower in paragraph.lower():
                 results.append({
                     "section": section_name,
-                    "text": paragraph.strip(),
+                    "text": paragraph.strip()[:500],
                 })
 
     if not results:
         return f"No matches found for '{query}'."
 
-    return json.dumps(results, indent=2)
+    return json.dumps(results[:10], indent=2)
 
 
 # ============================================================
 # Tool 5: get_paper_metadata
 # ============================================================
-# Returns high-level info about the paper without spoiling content.
 
 @server.tool()
 def get_paper_metadata(paper_id: str = "default") -> str:
-    """Get metadata about the parsed paper: number of sections,
-    section names, and total length. Does not return actual content.
+    """Get metadata about the parsed paper: title, authors, abstract,
+    number of sections, section names, and reading progress.
+
+    Does not return full section content — use get_section for that.
 
     Args:
         paper_id: Optional paper identifier
@@ -173,17 +159,23 @@ def get_paper_metadata(paper_id: str = "default") -> str:
     if not paper:
         return "Error: No paper loaded. Call parse_paper first."
 
+    read_pos = paper["read_position"]
+    sections_read = read_pos + 1 if read_pos >= 0 else 0
+
     metadata = {
         "paper_id": paper_id or store.active_paper_id,
+        "title": paper.get("title", ""),
+        "authors": paper.get("authors", ""),
+        "abstract": paper.get("abstract", ""),
         "num_sections": len(paper["sections"]),
         "sections": paper["section_order"],
+        "sections_read": sections_read,
+        "current_section": paper["section_order"][read_pos] if read_pos >= 0 else None,
         "total_characters": len(paper["full_text"]),
     }
 
     return json.dumps(metadata, indent=2)
 
 
-# Start the server. This makes it listen on stdin/stdout
-# for incoming tool calls from the agent.
 if __name__ == "__main__":
     server.run()

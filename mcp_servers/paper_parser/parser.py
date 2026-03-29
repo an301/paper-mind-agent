@@ -3,11 +3,7 @@ import pymupdf
 
 
 def extract_text_from_pdf(pdf_path):
-    """Extract all text from a PDF file, page by page.
-
-    PyMuPDF reads each page and extracts the text content.
-    We return a single string with all pages combined.
-    """
+    """Extract all text from a PDF file, page by page."""
     doc = pymupdf.open(pdf_path)
     full_text = ""
     for page in doc:
@@ -16,52 +12,123 @@ def extract_text_from_pdf(pdf_path):
     return full_text
 
 
+def extract_metadata_from_pdf(pdf_path):
+    """Extract title, authors, and abstract from a PDF.
+
+    Heuristic approach:
+    - Title: largest font text on page 1, or first non-empty line
+    - Authors: lines between title and abstract (often smaller font, with commas)
+    - Abstract: text following an "Abstract" heading
+    """
+    doc = pymupdf.open(pdf_path)
+    page = doc[0]
+
+    # Get text blocks with font info from the first page
+    blocks = page.get_text("dict")["blocks"]
+
+    title = ""
+    authors = ""
+    max_font_size = 0
+    title_bottom = 0
+
+    # Find the largest font text on page 1 — that's usually the title
+    for block in blocks:
+        if "lines" not in block:
+            continue
+        for line in block["lines"]:
+            for span in line["spans"]:
+                text = span["text"].strip()
+                size = span["size"]
+                if text and size > max_font_size and len(text) > 5:
+                    max_font_size = size
+                    title = text
+                    title_bottom = line["bbox"][3]
+
+    # Collect lines after the title for author extraction
+    # Authors are usually between the title and abstract, in a mid-size font
+    author_lines = []
+    abstract_started = False
+    for block in blocks:
+        if "lines" not in block:
+            continue
+        for line in block["lines"]:
+            y_pos = line["bbox"][1]
+            if y_pos <= title_bottom:
+                continue
+            line_text = " ".join(span["text"] for span in line["spans"]).strip()
+            if not line_text:
+                continue
+            if re.match(r"^(abstract|ABSTRACT)", line_text, re.IGNORECASE):
+                abstract_started = True
+                break
+            # Stop collecting authors if we hit a section-like heading or long text
+            if len(line_text) > 200:
+                break
+            author_lines.append(line_text)
+
+    if author_lines:
+        authors = " ".join(author_lines[:5])  # Cap at 5 lines
+
+    # Also check PDF metadata
+    pdf_meta = doc.metadata
+    if not title and pdf_meta.get("title"):
+        title = pdf_meta["title"]
+    if not authors and pdf_meta.get("author"):
+        authors = pdf_meta["author"]
+
+    doc.close()
+    return {"title": title, "authors": authors}
+
+
 def split_into_sections(full_text):
     """Split paper text into sections based on headings.
 
-    Research papers typically have numbered sections like:
-      1. Introduction
-      2. Related Work
-      3. Methodology
-
-    Or unnumbered headings like:
-      Abstract
-      Introduction
-      Conclusion
-
-    This function detects those patterns and splits the text.
-    Returns a dict mapping section names to their content.
+    Handles common academic paper formats:
+    - Numbered: "1. Introduction", "2.1 Methods", "3 Results"
+    - Unnumbered: "Abstract", "INTRODUCTION", "Related Work"
+    - Roman numerals: "I. Introduction", "II. Methods"
     """
-    # This regex matches common section heading patterns:
-    # - "1. Introduction" or "2.1 Methods" (numbered)
-    # - "Abstract" or "INTRODUCTION" (standalone uppercase/title words)
-    # - "References" at the end
-    #
-    # re.MULTILINE makes ^ match the start of each line, not just
-    # the start of the entire string.
     section_pattern = re.compile(
-        r"^(\d+\.?\d*\.?\s+[A-Z][^\n]+|Abstract|ABSTRACT|Introduction|INTRODUCTION|"
-        r"Conclusion|CONCLUSION|References|REFERENCES|Related Work|RELATED WORK|"
-        r"Methodology|METHODOLOGY|Methods|METHODS|Results|RESULTS|Discussion|DISCUSSION)",
+        r"^("
+        # Numbered sections: "1. Introduction", "2.1 Methods", "3 Results"
+        r"\d+\.?\d*\.?\s+[A-Z][^\n]{2,80}"
+        r"|"
+        # Roman numeral sections: "I. Introduction", "IV. EXPERIMENTS"
+        r"[IVX]+\.\s+[A-Z][^\n]{2,80}"
+        r"|"
+        # Common standalone headings (case-insensitive matching)
+        r"(?:Abstract|ABSTRACT"
+        r"|Introduction|INTRODUCTION"
+        r"|Related\s+Work|RELATED\s+WORK"
+        r"|Background|BACKGROUND"
+        r"|Methodology|METHODOLOGY|Methods|METHODS|Method|METHOD"
+        r"|Approach|APPROACH"
+        r"|Experiments?|EXPERIMENTS?"
+        r"|Results?|RESULTS?"
+        r"|Discussion|DISCUSSION"
+        r"|Analysis|ANALYSIS"
+        r"|Evaluation|EVALUATION"
+        r"|Implementation|IMPLEMENTATION"
+        r"|Conclusion|CONCLUSION|Conclusions|CONCLUSIONS"
+        r"|Future\s+Work|FUTURE\s+WORK"
+        r"|Acknowledgment|ACKNOWLEDGMENT|Acknowledgements?|ACKNOWLEDGEMENTS?"
+        r"|References|REFERENCES|Bibliography|BIBLIOGRAPHY"
+        r"|Appendix|APPENDIX)"
+        r")",
         re.MULTILINE,
     )
 
-    # Find all heading positions in the text
     matches = list(section_pattern.finditer(full_text))
 
     if not matches:
-        # No sections found — return the whole text as one section
         return {"full_text": full_text.strip()}
 
     sections = {}
     for i, match in enumerate(matches):
-        # The section name is what the regex matched
         section_name = match.group().strip()
-        # Clean up: remove numbering like "1. " for cleaner keys
-        clean_name = re.sub(r"^\d+\.?\d*\.?\s+", "", section_name).lower()
+        # Clean: remove numbering for cleaner keys
+        clean_name = re.sub(r"^(\d+\.?\d*\.?\s+|[IVX]+\.\s+)", "", section_name).strip().lower()
 
-        # The section content starts after the heading and goes
-        # until the next heading (or end of text for the last section)
         start = match.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(full_text)
 
@@ -75,40 +142,42 @@ def split_into_sections(full_text):
 class PaperStore:
     """Stores parsed papers so tools can access them.
 
-    This is a simple in-memory store. When the user calls parse_paper,
-    we parse the PDF and store the sections here. Other tools then
-    read from this store.
-
-    In a production system, you'd use a database. For Phase 2,
-    in-memory is fine — we're learning the architecture.
+    In-memory store: parse_paper populates it, other tools read from it.
     """
 
     def __init__(self):
-        # Maps paper_id to its data (sections, metadata, etc.)
         self.papers = {}
-        # Tracks which paper is currently active (most recently parsed)
         self.active_paper_id = None
 
     def add_paper(self, paper_id, pdf_path):
         """Parse a PDF and store its sections."""
         full_text = extract_text_from_pdf(pdf_path)
         sections = split_into_sections(full_text)
+        metadata = extract_metadata_from_pdf(pdf_path)
+
+        # Extract abstract from sections if present
+        abstract = ""
+        for key in ("abstract",):
+            if key in sections:
+                abstract = sections[key][:500]
+                break
 
         self.papers[paper_id] = {
             "pdf_path": pdf_path,
             "full_text": full_text,
             "sections": sections,
-            # Store section names in order for get_sections_up_to
             "section_order": list(sections.keys()),
-            # Track the furthest section the user has read.
-            # Updated automatically every time get_section is called.
-            # -1 means no sections have been read yet.
             "read_position": -1,
+            "title": metadata["title"],
+            "authors": metadata["authors"],
+            "abstract": abstract,
         }
         self.active_paper_id = paper_id
 
         return {
             "paper_id": paper_id,
+            "title": metadata["title"],
+            "authors": metadata["authors"],
             "num_sections": len(sections),
             "section_names": list(sections.keys()),
         }
@@ -121,17 +190,12 @@ class PaperStore:
         return self.papers[paper_id]
 
     def update_read_position(self, section_name, paper_id=None):
-        """Update the reading position when a section is accessed.
-
-        Only moves forward — if the user reads section 3 then section 1,
-        the position stays at 3. You can't "unread" a section.
-        """
+        """Update reading position. Only moves forward."""
         paper = self.get_paper(paper_id)
         if not paper or section_name not in paper["section_order"]:
             return
 
         section_index = paper["section_order"].index(section_name)
-        # Only advance, never go backwards
         if section_index > paper["read_position"]:
             paper["read_position"] = section_index
 

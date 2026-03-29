@@ -1,0 +1,142 @@
+.doc-viewer {
+  flex: 1;
+  overflow-y: auto;
+  background: #1a1a22;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.doc-viewer-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px;
+  gap: 12px;
+}
+
+.doc-empty-icon {
+  color: var(--text-muted);
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+
+.doc-viewer-empty h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.doc-viewer-empty p {
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+/* PDF pages — fill the width */
+.doc-page-wrapper {
+  margin-bottom: 4px;
+  position: relative;
+  background: white;
+  width: 100%;
+}
+
+.doc-page-number {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 11px;
+  color: #999;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 2px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* react-pdf overrides */
+.react-pdf__Document {
+  width: 100%;
+}
+
+.react-pdf__Page {
+  width: 100% !important;
+}
+
+.react-pdf__Page__textContent {
+  user-select: text !important;
+}
+
+.react-pdf__Page__textContent span::selection {
+  background: rgba(108, 92, 231, 0.3);
+}
+
+/* Text file viewer */
+.doc-text-content {
+  width: 100%;
+  max-width: 800px;
+  padding: 32px 24px;
+}
+
+.doc-text-content pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+/* Loading / error states */
+.doc-loading,
+.doc-error {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.doc-error {
+  color: var(--danger);
+}
+
+/* Floating "Ask about this" button */
+.ask-selection-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--accent-light);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: all var(--transition);
+  white-space: nowrap;
+  animation: ask-btn-in 0.12s ease-out;
+}
+
+.ask-selection-btn:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+@keyframes ask-btn-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -90%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
+}
