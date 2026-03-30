@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import UploadZone from './components/UploadZone';
 import DocumentViewer from './components/DocumentViewer';
 import ChatPanel, { type Message } from './components/ChatPanel';
 import KnowledgeGraphPanel from './components/KnowledgeGraphPanel';
+import { uploadPaper, sendChatMessage, type StreamEvent } from './api';
 import './App.css';
 
 interface Paper {
@@ -10,44 +11,72 @@ interface Paper {
   name: string;
   file: File;
   url: string;
+  backendPaperId: string | null;
+  status: 'uploading' | 'ready' | 'error';
+  sections: string[];
 }
 
 type Tab = 'paper' | 'graph';
-
-const DUMMY_RESPONSES = [
-  "I can see you've uploaded a paper. Let me help you understand it! Which section would you like to start with?",
-  "That's a great question. The key insight here is that the transformer architecture replaces recurrence entirely with self-attention mechanisms, allowing for much greater parallelization during training.",
-  "Let me break that down. Self-attention works by computing three vectors for each token: Query, Key, and Value. The attention score between two positions is the dot product of the Query of one position with the Key of another, scaled by the square root of the dimension.",
-  "Based on what we've discussed, I think you have a solid understanding of the basics. Would you like to dive deeper into multi-head attention, or shall we move on to the next section?",
-  "The paper mentions that positional encodings are added to the input embeddings to give the model information about token positions. Without this, the model would have no way to distinguish word order since self-attention is permutation-invariant.",
-];
 
 function App() {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [activePaperId, setActivePaperId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('paper');
   const [messagesByPaper, setMessagesByPaper] = useState<Record<string, Message[]>>({});
+  const [sessionsByPaper, setSessionsByPaper] = useState<Record<string, string>>({});
   const [isTyping, setIsTyping] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [readingPosition, setReadingPosition] = useState({ page: 0, total: 0 });
   const [selectionContext, setSelectionContext] = useState<string | null>(null);
+  // Ref to track the streaming assistant message ID
+  const streamingMsgId = useRef<string | null>(null);
 
   const activePaper = papers.find((p) => p.id === activePaperId) ?? null;
   const currentMessages = activePaperId
     ? messagesByPaper[activePaperId] || []
     : [];
 
-  const handleFileUpload = (file: File) => {
-    const url = URL.createObjectURL(file);
+  const handleFileUpload = async (file: File) => {
+    const localUrl = URL.createObjectURL(file);
+    const localId = Date.now().toString();
+
     const paper: Paper = {
-      id: Date.now().toString(),
+      id: localId,
       name: file.name.replace(/\.[^/.]+$/, ''),
       file,
-      url,
+      url: localUrl,
+      backendPaperId: null,
+      status: 'uploading',
+      sections: [],
     };
+
     setPapers((prev) => [...prev, paper]);
-    setActivePaperId(paper.id);
+    setActivePaperId(localId);
     setActiveTab('paper');
+
+    // Upload to backend
+    try {
+      const result = await uploadPaper(file);
+      setPapers((prev) =>
+        prev.map((p) =>
+          p.id === localId
+            ? {
+                ...p,
+                backendPaperId: result.paper_id,
+                name: result.title || p.name,
+                sections: result.section_names,
+                status: 'ready' as const,
+              }
+            : p
+        )
+      );
+    } catch {
+      setPapers((prev) =>
+        prev.map((p) =>
+          p.id === localId ? { ...p, status: 'error' as const } : p
+        )
+      );
+    }
   };
 
   const handleRemovePaper = (id: string) => {
@@ -65,51 +94,109 @@ function App() {
     }
   };
 
-  const addMessage = useCallback(
-    (paperId: string, message: Message) => {
-      setMessagesByPaper((prev) => ({
+  const appendMessage = useCallback((paperId: string, message: Message) => {
+    setMessagesByPaper((prev) => ({
+      ...prev,
+      [paperId]: [...(prev[paperId] || []), message],
+    }));
+  }, []);
+
+  const updateLastMessage = useCallback((paperId: string, text: string) => {
+    setMessagesByPaper((prev) => {
+      const msgs = prev[paperId] || [];
+      if (msgs.length === 0) return prev;
+      const last = msgs[msgs.length - 1];
+      return {
         ...prev,
-        [paperId]: [...(prev[paperId] || []), message],
-      }));
-    },
-    []
-  );
+        [paperId]: [
+          ...msgs.slice(0, -1),
+          { ...last, content: last.content + text },
+        ],
+      };
+    });
+  }, []);
 
   const handleSendMessage = useCallback(
-    (text: string) => {
+    async (text: string) => {
       if (!activePaperId || isTyping) return;
 
+      const paperId = activePaperId;
+      const context = selectionContext;
+
+      // Build message with context
+      let fullMessage = text;
+      if (context) {
+        fullMessage = `[Highlighted text from the paper: "${context}"]\n\n${text}`;
+      }
+
+      // Add user message to UI
       const userMessage: Message = {
         id: Date.now().toString(),
         role: 'user',
         content: text,
-        context: selectionContext || undefined,
+        context: context || undefined,
       };
-      addMessage(activePaperId, userMessage);
+      appendMessage(paperId, userMessage);
       setChatInput('');
-      setSelectionContext(null); // Clear context after sending
+      setSelectionContext(null);
       setIsTyping(true);
 
-      // Simulate AI response
-      const msgCount = messagesByPaper[activePaperId]?.length || 0;
-      const responseText = DUMMY_RESPONSES[msgCount % DUMMY_RESPONSES.length];
-      const delay = 500 + Math.random() * 1000;
+      // Create placeholder assistant message for streaming
+      const assistantMsgId = (Date.now() + 1).toString();
+      streamingMsgId.current = assistantMsgId;
+      const assistantMessage: Message = {
+        id: assistantMsgId,
+        role: 'assistant',
+        content: '',
+      };
+      appendMessage(paperId, assistantMessage);
 
-      const paperId = activePaperId;
-      setTimeout(() => {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: responseText,
-        };
-        addMessage(paperId, assistantMessage);
-        setIsTyping(false);
-      }, delay);
+      // Send to backend and stream response
+      const sessionId = sessionsByPaper[paperId] || null;
+
+      try {
+        const returnedSessionId = await sendChatMessage(
+          fullMessage,
+          sessionId,
+          (event: StreamEvent) => {
+            if (event.type === 'token' && event.text) {
+              updateLastMessage(paperId, event.text);
+            } else if (event.type === 'tool_call') {
+              // Show tool call as a status in the message
+              const toolNote = `\n\n*Using ${event.name}...*\n\n`;
+              updateLastMessage(paperId, toolNote);
+            }
+          }
+        );
+
+        // Store session ID for future messages
+        if (returnedSessionId) {
+          setSessionsByPaper((prev) => ({
+            ...prev,
+            [paperId]: returnedSessionId,
+          }));
+        }
+      } catch (err) {
+        const errorText = err instanceof Error ? err.message : 'Unknown error';
+        updateLastMessage(
+          paperId,
+          `\n\n**Error:** ${errorText}. Make sure the backend is running: \`uvicorn backend.api:app --reload\``
+        );
+      }
+
+      streamingMsgId.current = null;
+      setIsTyping(false);
     },
-    [activePaperId, isTyping, selectionContext, messagesByPaper, addMessage]
+    [
+      activePaperId,
+      isTyping,
+      selectionContext,
+      sessionsByPaper,
+      appendMessage,
+      updateLastMessage,
+    ]
   );
 
-  // Called when user clicks "Ask about this" on highlighted text
   const handleSelectContext = useCallback((text: string) => {
     setSelectionContext(text);
   }, []);
@@ -148,7 +235,13 @@ function App() {
                     setActiveTab('paper');
                   }}
                 >
-                  <span className="icon">&#x1F4C4;</span>
+                  <span className="icon">
+                    {paper.status === 'uploading'
+                      ? '\u23F3'
+                      : paper.status === 'error'
+                        ? '\u26A0'
+                        : '\uD83D\uDCC4'}
+                  </span>
                   <span className="name">{paper.name}</span>
                   <button
                     className="remove-btn"
@@ -172,11 +265,16 @@ function App() {
           <span className="paper-title">
             {activePaper ? activePaper.name : 'No paper selected'}
           </span>
-          {readingPosition.total > 0 && activeTab === 'paper' && (
-            <span className="reading-badge">
-              Page {readingPosition.page} / {readingPosition.total}
-            </span>
+          {activePaper?.status === 'uploading' && (
+            <span className="reading-badge">Parsing...</span>
           )}
+          {readingPosition.total > 0 &&
+            activeTab === 'paper' &&
+            activePaper?.status === 'ready' && (
+              <span className="reading-badge">
+                Page {readingPosition.page} / {readingPosition.total}
+              </span>
+            )}
           <div className="tab-group">
             <button
               className={`tab ${activeTab === 'paper' ? 'active' : ''}`}

@@ -1,7 +1,7 @@
 import os
 import asyncio
 from dotenv import load_dotenv
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 from prompts import SYSTEM_PROMPT
 from loop import Agent
 from mcp_client import MCPClient
@@ -21,7 +21,7 @@ KNOWLEDGE_GRAPH_SERVER = os.path.join(
 
 
 async def main():
-    client = Anthropic()
+    client = AsyncAnthropic()
     mcp = MCPClient()
 
     # Connect to MCP servers
@@ -38,7 +38,7 @@ async def main():
     # Create the agent with all MCP tools
     agent = Agent(client, SYSTEM_PROMPT, mcp_client=mcp)
 
-    print("Research Mind — Phase 3")
+    print("Research Mind — Phase 4")
     print("Type 'quit' to exit.\n")
 
     try:
