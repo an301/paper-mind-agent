@@ -5,25 +5,31 @@
 }
 
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-tertiary: #1a1a25;
-  --bg-hover: #22222f;
-  --border: #2a2a3a;
-  --border-light: #3a3a4a;
+  --bg-primary: #080a0f;
+  --bg-secondary: #0e1116;
+  --bg-tertiary: #151921;
+  --bg-elevated: #1a1d24;
+  --bg-hover: rgba(255, 255, 255, 0.03);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-light: rgba(255, 255, 255, 0.12);
   --text-primary: #e8e8ef;
   --text-secondary: #9898a8;
-  --text-muted: #6a6a7a;
-  --accent: #6c5ce7;
-  --accent-light: #a29bfe;
-  --accent-glow: rgba(108, 92, 231, 0.15);
-  --success: #00cec9;
-  --warning: #fdcb6e;
-  --danger: #ff6b6b;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --text-muted: #5a5a6a;
+  --accent: #7c3aed;
+  --accent-light: #a78bfa;
+  --accent-fuchsia: #d946ef;
+  --accent-glow: rgba(124, 58, 237, 0.12);
+  --accent-glow-strong: rgba(124, 58, 237, 0.25);
+  --success: #10b981;
+  --warning: #eab308;
+  --danger: #ef4444;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
   --radius: 12px;
   --radius-sm: 8px;
+  --radius-lg: 16px;
   --transition: 0.2s ease;
+  --transition-slow: 0.3s ease;
 }
 
 body {
@@ -41,8 +47,15 @@ body {
   flex-direction: column;
 }
 
+::selection {
+  background: rgba(124, 58, 237, 0.3);
+  color: white;
+}
+
+/* Ultra-thin scrollbar — only visible on hover */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -50,10 +63,32 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+*:hover > ::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-light);
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Glassmorphism utilities */
+.glass-panel {
+  background: linear-gradient(
+    145deg,
+    rgba(14, 17, 22, 0.8) 0%,
+    rgba(8, 10, 15, 0.9) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
 }

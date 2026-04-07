@@ -213,48 +213,66 @@ function App() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="logo">R</div>
+          <div className="logo">
+            <i className="ph-fill ph-brain" style={{ fontSize: 16 }}></i>
+          </div>
           <h1>Research Mind</h1>
           <span>alpha</span>
         </div>
 
-        <UploadZone onFileUpload={handleFileUpload} />
+        <div className="sidebar-content">
+          <UploadZone onFileUpload={handleFileUpload} />
 
-        <div className="papers-section">
-          <h2>Your Papers</h2>
-          <div className="papers-list">
-            {papers.length === 0 ? (
-              <p className="no-papers">No papers uploaded yet</p>
-            ) : (
-              papers.map((paper) => (
-                <div
-                  key={paper.id}
-                  className={`paper-item ${paper.id === activePaperId ? 'active' : ''}`}
-                  onClick={() => {
-                    setActivePaperId(paper.id);
-                    setActiveTab('paper');
-                  }}
-                >
-                  <span className="icon">
-                    {paper.status === 'uploading'
-                      ? '\u23F3'
-                      : paper.status === 'error'
-                        ? '\u26A0'
-                        : '\uD83D\uDCC4'}
-                  </span>
-                  <span className="name">{paper.name}</span>
-                  <button
-                    className="remove-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemovePaper(paper.id);
+          <div className="papers-section">
+            <h2>Library</h2>
+            <div className="papers-list">
+              {papers.length === 0 ? (
+                <p className="no-papers">No papers uploaded yet</p>
+              ) : (
+                papers.map((paper) => (
+                  <div
+                    key={paper.id}
+                    className={`paper-item ${paper.id === activePaperId ? 'active' : ''}`}
+                    onClick={() => {
+                      setActivePaperId(paper.id);
+                      setActiveTab('paper');
                     }}
                   >
-                    &#x2715;
-                  </button>
-                </div>
-              ))
-            )}
+                    <span className="icon">
+                      <i
+                        className={
+                          paper.status === 'uploading'
+                            ? 'ph ph-spinner'
+                            : paper.status === 'error'
+                              ? 'ph ph-warning'
+                              : 'ph-fill ph-file-pdf'
+                        }
+                        style={{
+                          color:
+                            paper.status === 'error'
+                              ? 'var(--danger)'
+                              : paper.status === 'uploading'
+                                ? 'var(--text-muted)'
+                                : paper.id === activePaperId
+                                  ? '#f87171'
+                                  : 'var(--text-muted)',
+                        }}
+                      ></i>
+                    </span>
+                    <span className="name">{paper.name}</span>
+                    <button
+                      className="remove-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemovePaper(paper.id);
+                      }}
+                    >
+                      &#x2715;
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </aside>
@@ -266,7 +284,7 @@ function App() {
             {activePaper ? activePaper.name : 'No paper selected'}
           </span>
           {activePaper?.status === 'uploading' && (
-            <span className="reading-badge">Parsing...</span>
+            <span className="reading-badge parsing">Parsing...</span>
           )}
           {readingPosition.total > 0 &&
             activeTab === 'paper' &&
@@ -280,13 +298,13 @@ function App() {
               className={`tab ${activeTab === 'paper' ? 'active' : ''}`}
               onClick={() => setActiveTab('paper')}
             >
-              Paper
+              <i className="ph ph-file-text"></i> Paper
             </button>
             <button
               className={`tab ${activeTab === 'graph' ? 'active' : ''}`}
               onClick={() => setActiveTab('graph')}
             >
-              Knowledge Graph
+              <i className="ph ph-graph"></i> Knowledge Graph
             </button>
           </div>
         </div>

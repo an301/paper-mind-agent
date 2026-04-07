@@ -70,13 +70,18 @@ export default function ChatPanel({
   return (
     <div className="chat-panel">
       <div className="chat-header">
-        <span className="chat-header-title">AI Assistant</span>
+        <div className="chat-header-icon">
+          <i className="ph-fill ph-sparkle"></i>
+        </div>
+        <span className="chat-header-title">Research Assistant</span>
       </div>
 
       <div className="messages-container">
         {messages.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-icon">?</div>
+            <div className="empty-icon">
+              <i className="ph-fill ph-sparkle"></i>
+            </div>
             <h3>Ask anything about your paper</h3>
             <p>
               Highlight text in the paper to ask specific questions, or type
@@ -84,12 +89,15 @@ export default function ChatPanel({
             </p>
             <div className="suggestion-chips">
               <button onClick={() => onInputChange('What is this paper about?')}>
+                <i className="ph ph-magnifying-glass" style={{ color: 'var(--accent)' }}></i>
                 What is this paper about?
               </button>
               <button onClick={() => onInputChange('Explain section 1')}>
+                <i className="ph ph-list-numbers" style={{ color: 'var(--accent)' }}></i>
                 Explain section 1
               </button>
               <button onClick={() => onInputChange('What are the key contributions?')}>
+                <i className="ph ph-star" style={{ color: 'var(--accent)' }}></i>
                 Key contributions?
               </button>
             </div>
@@ -99,16 +107,15 @@ export default function ChatPanel({
             {messages.map((msg) => (
               <div key={msg.id} className={`message ${msg.role}`}>
                 <div className="message-avatar">
-                  {msg.role === 'user' ? 'U' : 'AI'}
+                  {msg.role === 'user' ? 'U' : (
+                    <i className="ph-fill ph-sparkle" style={{ fontSize: 14 }}></i>
+                  )}
                 </div>
                 <div className="message-content">
-                  <div className="message-role">
-                    {msg.role === 'user' ? 'You' : 'Research Mind'}
-                  </div>
                   {msg.context && (
                     <div className="message-context">
-                      <span className="context-label">Highlighted:</span>
-                      {' '}&ldquo;{truncate(msg.context, 150)}&rdquo;
+                      <span className="context-label">Highlighted</span>
+                      &ldquo;{truncate(msg.context, 150)}&rdquo;
                     </div>
                   )}
                   <div className="message-text">{msg.content}</div>
@@ -117,9 +124,10 @@ export default function ChatPanel({
             ))}
             {isTyping && (
               <div className="message assistant">
-                <div className="message-avatar">AI</div>
+                <div className="message-avatar">
+                  <i className="ph-fill ph-sparkle" style={{ fontSize: 14 }}></i>
+                </div>
                 <div className="message-content">
-                  <div className="message-role">Research Mind</div>
                   <div className="typing-indicator">
                     <span></span>
                     <span></span>
@@ -151,34 +159,33 @@ export default function ChatPanel({
           </div>
         )}
         <div className="chat-input-wrapper">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleTextareaInput}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              selectionContext
-                ? 'Ask about the highlighted text...'
-                : 'Ask about the paper...'
-            }
-            rows={1}
-            disabled={isTyping}
-          />
-          <button
-            type="submit"
-            className="send-button"
-            disabled={!input.trim() || isTyping}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M14.5 1.5L7 9M14.5 1.5L10 14.5L7 9M14.5 1.5L1.5 6L7 9"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          <div className="chat-input-inner">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleTextareaInput}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                selectionContext
+                  ? 'Ask about the highlighted text...'
+                  : 'Ask anything about this document...'
+              }
+              rows={1}
+              disabled={isTyping}
+            />
+            <div className="chat-input-toolbar">
+              <button
+                type="submit"
+                className="send-button"
+                disabled={!input.trim() || isTyping}
+              >
+                <i className="ph-fill ph-paper-plane-right" style={{ fontSize: 14 }}></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="chat-disclaimer">
+          Research Mind can make mistakes. Verify critical claims.
         </div>
       </form>
     </div>

@@ -1,11 +1,12 @@
 .doc-viewer {
   flex: 1;
   overflow-y: auto;
-  background: #1a1a22;
+  background: #0a0c10;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0;
+  padding: 32px 0;
+  box-shadow: inset 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .doc-viewer-empty {
@@ -21,14 +22,25 @@
 
 .doc-empty-icon {
   color: var(--text-muted);
-  opacity: 0.5;
+  opacity: 0.4;
   margin-bottom: 8px;
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
 }
 
 .doc-viewer-empty h3 {
   font-size: 18px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: white;
 }
 
 .doc-viewer-empty p {
@@ -38,12 +50,17 @@
   line-height: 1.6;
 }
 
-/* PDF pages — fill the width */
+/* PDF pages — premium paper look */
 .doc-page-wrapper {
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   position: relative;
   background: white;
   width: 100%;
+  max-width: 800px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 20px 40px -10px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(255, 255, 255, 0.02);
+  border-radius: 2px;
 }
 
 .doc-page-number {
@@ -51,6 +68,7 @@
   bottom: 8px;
   right: 12px;
   font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
   color: #999;
   background: rgba(255, 255, 255, 0.85);
   padding: 2px 8px;
@@ -61,10 +79,14 @@
 /* react-pdf overrides */
 .react-pdf__Document {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .react-pdf__Page {
   width: 100% !important;
+  max-width: 800px;
 }
 
 .react-pdf__Page__textContent {
@@ -72,14 +94,18 @@
 }
 
 .react-pdf__Page__textContent span::selection {
-  background: rgba(108, 92, 231, 0.3);
+  background: rgba(124, 58, 237, 0.3);
 }
 
 /* Text file viewer */
 .doc-text-content {
   width: 100%;
   max-width: 800px;
-  padding: 32px 24px;
+  padding: 40px 32px;
+  background: #faf9f6;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 20px 40px -10px rgba(0, 0, 0, 0.6);
+  border-radius: 2px;
 }
 
 .doc-text-content pre {
@@ -87,8 +113,8 @@
   word-wrap: break-word;
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 14px;
-  line-height: 1.7;
-  color: var(--text-primary);
+  line-height: 1.8;
+  color: #1a1a2e;
 }
 
 /* Loading / error states */
@@ -109,25 +135,27 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 10px 16px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-light);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   background: var(--bg-secondary);
   color: var(--accent-light);
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   transition: all var(--transition);
   white-space: nowrap;
   animation: ask-btn-in 0.12s ease-out;
+  backdrop-filter: blur(12px);
 }
 
 .ask-selection-btn:hover {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-fuchsia));
   color: white;
-  border-color: var(--accent);
+  border-color: transparent;
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
 }
 
 @keyframes ask-btn-in {

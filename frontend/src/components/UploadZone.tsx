@@ -72,9 +72,11 @@ export default function UploadZone({ onFileUpload }: UploadZoneProps) {
         onChange={handleFileSelect}
         hidden
       />
-      <div className="upload-icon">+</div>
-      <p className="upload-text">Drop file here</p>
-      <p className="upload-hint">PDF, DOCX, TXT, MD, EPUB, CSV</p>
+      <div className="upload-icon">
+        <i className="ph ph-cloud-arrow-up" style={{ fontSize: 20 }}></i>
+      </div>
+      <p className="upload-text">Drop PDF here to analyze</p>
+      <p className="upload-hint">or click to browse</p>
     </div>
   );
 }
