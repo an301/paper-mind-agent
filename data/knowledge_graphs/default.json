@@ -1,0 +1,31 @@
+{
+  "user_id": "default",
+  "concepts": {
+    "one-gen datasets": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "diffusion model training",
+        "text-to-image datasets"
+      ],
+      "source": "One Diffusion to Generate Them All, one-gen datasets section",
+      "last_updated": "2026-04-17T01:27:59.577964"
+    },
+    "synthetic dataset generation": {
+      "confidence": 0.6,
+      "prerequisites": [
+        "diffusion model training",
+        "text-to-image datasets"
+      ],
+      "source": "One Diffusion to Generate Them All, one-gen datasets section",
+      "last_updated": "2026-04-17T01:27:59.566212"
+    },
+    "multi-task dataset construction": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "one-gen datasets"
+      ],
+      "source": "One Diffusion to Generate Them All, one-gen datasets section",
+      "last_updated": "2026-04-17T01:27:59.573171"
+    }
+  }
+}

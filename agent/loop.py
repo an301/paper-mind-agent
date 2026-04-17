@@ -42,6 +42,7 @@ class Agent:
         )
 
         all_tools = self.get_all_tools()
+        collected_text = []
 
         while True:
             api_kwargs = {
@@ -55,14 +56,15 @@ class Agent:
 
             response = await self.client.messages.create(**api_kwargs)
 
+            for block in response.content:
+                if block.type == "text" and block.text:
+                    collected_text.append(block.text)
+
             if response.stop_reason == "end_turn":
                 self.conversation_history.append(
                     {"role": "assistant", "content": response.content}
                 )
-                for block in response.content:
-                    if block.type == "text":
-                        return block.text
-                return "No response generated."
+                return "\n\n".join(collected_text) if collected_text else "No response generated."
 
             elif response.stop_reason == "tool_use":
                 self.conversation_history.append(
