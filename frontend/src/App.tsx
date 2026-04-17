@@ -3,7 +3,12 @@ import UploadZone from './components/UploadZone';
 import DocumentViewer from './components/DocumentViewer';
 import ChatPanel, { type Message } from './components/ChatPanel';
 import KnowledgeGraphPanel from './components/KnowledgeGraphPanel';
-import { uploadPaper, sendChatMessage, type StreamEvent } from './api';
+import {
+  uploadPaper,
+  sendChatMessage,
+  updateReadingPosition,
+  type StreamEvent,
+} from './api';
 import './App.css';
 
 interface Paper {
@@ -26,15 +31,29 @@ function App() {
   const [sessionsByPaper, setSessionsByPaper] = useState<Record<string, string>>({});
   const [isTyping, setIsTyping] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [readingPosition, setReadingPosition] = useState({ page: 0, total: 0 });
+  // Per-paper reading positions, keyed by local paper id.
+  // Holds live current page, max page reached, and total pages.
+  const [positionsByPaper, setPositionsByPaper] = useState<
+    Record<string, { current: number; max: number; total: number }>
+  >({});
+  // Per-paper live line snippet — the text nearest the viewport center.
+  // This is the "exactly where the user is" signal the agent uses.
+  const [lineByPaper, setLineByPaper] = useState<
+    Record<string, { snippet: string; page: number }>
+  >({});
   const [selectionContext, setSelectionContext] = useState<string | null>(null);
   // Ref to track the streaming assistant message ID
   const streamingMsgId = useRef<string | null>(null);
+  // Throttle timer for persisting reading position to the backend
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activePaper = papers.find((p) => p.id === activePaperId) ?? null;
   const currentMessages = activePaperId
     ? messagesByPaper[activePaperId] || []
     : [];
+  const readingPosition = activePaperId
+    ? positionsByPaper[activePaperId] || { current: 0, max: 0, total: 0 }
+    : { current: 0, max: 0, total: 0 };
 
   const handleFileUpload = async (file: File) => {
     const localUrl = URL.createObjectURL(file);
@@ -153,6 +172,12 @@ function App() {
 
       // Send to backend and stream response
       const sessionId = sessionsByPaper[paperId] || null;
+      const paper = papers.find((p) => p.id === paperId);
+      const pos = positionsByPaper[paperId];
+      const line = lineByPaper[paperId];
+      const currentPaperId = paper?.backendPaperId ?? null;
+      const currentPage = pos?.current ?? 0;
+      const currentLine = line?.snippet ?? '';
 
       try {
         const returnedSessionId = await sendChatMessage(
@@ -166,7 +191,10 @@ function App() {
               const toolNote = `\n\n*Using ${event.name}...*\n\n`;
               updateLastMessage(paperId, toolNote);
             }
-          }
+          },
+          currentPaperId,
+          currentPage,
+          currentLine
         );
 
         // Store session ID for future messages
@@ -194,6 +222,9 @@ function App() {
       sessionsByPaper,
       appendMessage,
       updateLastMessage,
+      papers,
+      positionsByPaper,
+      lineByPaper,
     ]
   );
 
@@ -201,11 +232,46 @@ function App() {
     setSelectionContext(text);
   }, []);
 
-  const handleReadingPositionChange = useCallback(
-    (page: number, total: number) => {
-      setReadingPosition({ page, total });
+  const handleCurrentLineChange = useCallback(
+    (snippet: string, page: number) => {
+      const paperId = activePaperId;
+      if (!paperId) return;
+      setLineByPaper((prev) => {
+        if (prev[paperId]?.snippet === snippet) return prev;
+        return { ...prev, [paperId]: { snippet, page } };
+      });
     },
-    []
+    [activePaperId]
+  );
+
+  const handleReadingPositionChange = useCallback(
+    (current: number, max: number, total: number) => {
+      const paperId = activePaperId;
+      if (!paperId) return;
+
+      setPositionsByPaper((prev) => ({
+        ...prev,
+        [paperId]: { current, max, total },
+      }));
+
+      // Throttle persistence to avoid hammering the backend while scrolling.
+      // Coalesce bursts into one POST ~500ms after the last scroll event.
+      const paper = papers.find((p) => p.id === paperId);
+      if (!paper?.backendPaperId) return;
+
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = setTimeout(() => {
+        updateReadingPosition({
+          paper_id: paper.backendPaperId!,
+          title: paper.name,
+          current_page: current,
+          total_pages: total,
+        }).catch(() => {
+          // Non-critical: position persistence failing shouldn't break the UI
+        });
+      }, 500);
+    },
+    [activePaperId, papers]
   );
 
   return (
@@ -290,7 +356,21 @@ function App() {
             activeTab === 'paper' &&
             activePaper?.status === 'ready' && (
               <span className="reading-badge">
-                Page {readingPosition.page} / {readingPosition.total}
+                Page {readingPosition.current} / {readingPosition.total}
+                {readingPosition.max > readingPosition.current &&
+                  ` · max ${readingPosition.max}`}
+              </span>
+            )}
+          {activeTab === 'paper' &&
+            activePaper?.status === 'ready' &&
+            activePaperId &&
+            lineByPaper[activePaperId]?.snippet && (
+              <span
+                className="reading-badge"
+                title={lineByPaper[activePaperId].snippet}
+                style={{ maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                Reading: &ldquo;{lineByPaper[activePaperId].snippet}&rdquo;
               </span>
             )}
           <div className="tab-group">
@@ -317,6 +397,7 @@ function App() {
                   fileUrl={activePaper?.url ?? null}
                   fileName={activePaper ? activePaper.file.name : null}
                   onReadingPositionChange={handleReadingPositionChange}
+                  onCurrentLineChange={handleCurrentLineChange}
                   onSelectContext={handleSelectContext}
                 />
               </div>

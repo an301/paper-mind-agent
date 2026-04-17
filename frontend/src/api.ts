@@ -42,7 +42,10 @@ export async function uploadPaper(file: File): Promise<UploadResult> {
 export async function sendChatMessage(
   message: string,
   sessionId: string | null,
-  onEvent: (event: StreamEvent) => void
+  onEvent: (event: StreamEvent) => void,
+  currentPaperId: string | null = null,
+  currentPage: number = 0,
+  currentLine: string = ''
 ): Promise<string | null> {
   const res = await fetch('/api/chat', {
     method: 'POST',
@@ -50,6 +53,9 @@ export async function sendChatMessage(
     body: JSON.stringify({
       message,
       session_id: sessionId,
+      current_paper_id: currentPaperId,
+      current_page: currentPage,
+      current_line: currentLine,
     }),
   });
 
@@ -112,4 +118,17 @@ export async function getKnowledgeGraph(userId: string = 'default') {
   const res = await fetch(`/api/knowledge-graph?user_id=${userId}`);
   if (!res.ok) throw new Error('Failed to fetch knowledge graph');
   return res.json();
+}
+
+export async function updateReadingPosition(params: {
+  paper_id: string;
+  title: string;
+  current_page: number;
+  total_pages: number;
+}) {
+  await fetch('/api/reading-position', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
 }

@@ -26,6 +26,15 @@
       ],
       "source": "One Diffusion to Generate Them All, one-gen datasets section",
       "last_updated": "2026-04-17T01:27:59.573171"
+    },
+    "variable conditional inputs": {
+      "confidence": 0.5,
+      "prerequisites": [
+        "diffusion model training",
+        "conditional generation"
+      ],
+      "source": "OneDiffusion, page 7",
+      "last_updated": "2026-04-17T01:56:06.869817"
     }
   }
 }
