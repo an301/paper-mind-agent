@@ -5,19 +5,36 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
+# Tools whose results are deterministic given identical args — safe to cache.
+# Excludes KG mutations (add_concept, update_confidence, remove_concept) since
+# caching those would skip the actual write on repeated calls.
+_CACHEABLE_TOOLS = frozenset({
+    "parse_paper",
+    "get_section",
+    "get_sections_up_to",
+    "search_paper",
+    "get_paper_metadata",
+    "get_user_knowledge",
+    "get_concept",
+    "find_prerequisite_gaps",
+    "get_learning_path",
+    "get_related_concepts",
+})
+
+
 class MCPClient:
     """Connects to MCP servers and makes their tools available to the agent.
 
     Handles starting server subprocesses, discovering tools, and
-    forwarding tool calls.
+    forwarding tool calls. Caches results for read-only tools so the
+    agent doesn't pay for repeated identical calls within a run.
     """
 
     def __init__(self):
         self._tool_sessions = {}
         self._tool_definitions = []
-        # AsyncExitStack manages the lifecycle of all connections.
-        # It ensures servers are properly shut down when we're done.
         self._exit_stack = AsyncExitStack()
+        self._cache: dict[tuple[str, str], str] = {}
 
     @property
     def tools(self):
@@ -80,16 +97,31 @@ class MCPClient:
             return f"Error: Unknown tool '{tool_name}'"
 
         session_info = self._tool_sessions[tool_name]
-        session = session_info["session"]
         original_name = session_info["original_name"]
 
+        cache_key = None
+        if original_name in _CACHEABLE_TOOLS:
+            cache_key = (original_name, json.dumps(arguments, sort_keys=True))
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+
+        session = session_info["session"]
         result = await session.call_tool(original_name, arguments)
 
         texts = []
         for block in result.content:
             if hasattr(block, "text"):
                 texts.append(block.text)
-        return "\n".join(texts) if texts else "No result returned."
+        out = "\n".join(texts) if texts else "No result returned."
+
+        if cache_key is not None:
+            self._cache[cache_key] = out
+        return out
+
+    def clear_cache(self):
+        """Drop the tool-call cache. Use between independent eval runs if
+        you want a clean slate per question."""
+        self._cache.clear()
 
     async def cleanup(self):
         """Shut down all server connections."""

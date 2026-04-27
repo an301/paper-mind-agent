@@ -12,19 +12,34 @@ class Agent:
     Uses AsyncAnthropic client for non-blocking API calls.
     """
 
-    def __init__(self, client, system_prompt, tools=None, tool_functions=None, mcp_client=None):
+    def __init__(
+        self,
+        client,
+        system_prompt,
+        tools=None,
+        tool_functions=None,
+        mcp_client=None,
+        excluded_tools: set[str] | None = None,
+        temperature: float = 0.0,
+    ):
         self.client = client
         self.system_prompt = system_prompt
         self.tools = tools or []
         self.tool_functions = tool_functions or {}
         self.mcp_client = mcp_client
+        self.excluded_tools = excluded_tools or set()
+        self.temperature = temperature
         self.conversation_history = []
+        # Per-call usage records — eval sums these for telemetry.
+        self.usage_log: list[dict] = []
 
     def get_all_tools(self):
-        """Combine local tool definitions with MCP tool definitions."""
+        """Combine local + MCP tool definitions, filtering excluded names."""
         all_tools = list(self.tools)
         if self.mcp_client:
             all_tools.extend(self.mcp_client.tools)
+        if self.excluded_tools:
+            all_tools = [t for t in all_tools if t["name"] not in self.excluded_tools]
         return all_tools
 
     def chat(self, user_message):
@@ -48,6 +63,7 @@ class Agent:
             api_kwargs = {
                 "model": "claude-sonnet-4-20250514",
                 "max_tokens": 8096,
+                "temperature": self.temperature,
                 "system": self.system_prompt,
                 "messages": self.conversation_history,
             }
@@ -55,6 +71,10 @@ class Agent:
                 api_kwargs["tools"] = all_tools
 
             response = await self.client.messages.create(**api_kwargs)
+            self.usage_log.append({
+                "input_tokens": getattr(response.usage, "input_tokens", 0),
+                "output_tokens": getattr(response.usage, "output_tokens", 0),
+            })
 
             for block in response.content:
                 if block.type == "text" and block.text:
@@ -110,6 +130,7 @@ class Agent:
             api_kwargs = {
                 "model": "claude-sonnet-4-20250514",
                 "max_tokens": 8096,
+                "temperature": self.temperature,
                 "system": self.system_prompt,
                 "messages": self.conversation_history,
             }
@@ -121,6 +142,10 @@ class Agent:
                 async for text in stream.text_stream:
                     yield {"type": "token", "text": text}
                 response = await stream.get_final_message()
+            self.usage_log.append({
+                "input_tokens": getattr(response.usage, "input_tokens", 0),
+                "output_tokens": getattr(response.usage, "output_tokens", 0),
+            })
 
             if response.stop_reason == "end_turn":
                 self.conversation_history.append(

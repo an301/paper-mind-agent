@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { FileText, Sparkles } from 'lucide-react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import './DocumentViewer.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -293,43 +293,37 @@ export default function DocumentViewer({
 
   if (!fileUrl) {
     return (
-      <div className="doc-viewer-empty">
-        <div className="doc-empty-icon">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <rect x="8" y="4" width="32" height="40" rx="4" stroke="currentColor" strokeWidth="2" />
-            <line x1="16" y1="16" x2="32" y2="16" stroke="currentColor" strokeWidth="2" />
-            <line x1="16" y1="22" x2="28" y2="22" stroke="currentColor" strokeWidth="2" />
-            <line x1="16" y1="28" x2="30" y2="28" stroke="currentColor" strokeWidth="2" />
-          </svg>
+      <div className="flex h-full flex-col items-center justify-center bg-bg px-8 py-16 text-center">
+        <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-md border border-border bg-bg-elevated text-fg-muted">
+          <FileText size={18} strokeWidth={1.5} />
         </div>
-        <h3>No paper selected</h3>
-        <p>Upload a research paper and click it to start reading.</p>
+        <h3 className="text-sm font-medium text-fg">No paper selected</h3>
+        <p className="mt-1 max-w-[34ch] text-xs leading-snug text-fg-muted">
+          Upload a research paper or pick one from the library on the left.
+        </p>
       </div>
     );
   }
 
   if (!isPdf && !isText) {
     return (
-      <div className="doc-viewer-empty">
-        <div className="doc-empty-icon">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <rect x="8" y="4" width="32" height="40" rx="4" stroke="currentColor" strokeWidth="2" />
-            <line x1="16" y1="16" x2="32" y2="16" stroke="currentColor" strokeWidth="2" />
-            <line x1="16" y1="22" x2="28" y2="22" stroke="currentColor" strokeWidth="2" />
-          </svg>
+      <div className="flex h-full flex-col items-center justify-center bg-bg px-8 py-16 text-center">
+        <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-md border border-border bg-bg-elevated text-fg-muted">
+          <FileText size={18} strokeWidth={1.5} />
         </div>
-        <h3>{fileName}</h3>
-        <p>Preview not available for this format, but you can still ask questions about it in the chat.</p>
+        <h3 className="text-sm font-medium text-fg">{fileName}</h3>
+        <p className="mt-1 max-w-[40ch] text-xs leading-snug text-fg-muted">
+          Preview isn't available for this format. Ask the agent questions about it on the right.
+        </p>
       </div>
     );
   }
 
-  // PDF page width: fill the container with small margins
-  const pageWidth = containerWidth > 0 ? containerWidth - 16 : undefined;
+  const pageWidth = containerWidth > 0 ? containerWidth - 48 : undefined;
 
   return (
     <div
-      className="doc-viewer"
+      className="relative h-full overflow-y-auto bg-bg"
       ref={containerRef}
       onMouseUp={handleMouseUp}
       onScroll={handleScroll}
@@ -342,25 +336,46 @@ export default function DocumentViewer({
             maxPageRef.current = 1;
             onReadingPositionChange(1, 1, n);
           }}
-          loading={<div className="doc-loading">Loading PDF...</div>}
-          error={<div className="doc-error">Failed to load PDF.</div>}
-        >
-          {Array.from({ length: numPages }, (_, i) => (
-            <div key={i + 1} data-page={i + 1} className="doc-page-wrapper">
-              <Page
-                pageNumber={i + 1}
-                width={pageWidth}
-                loading=""
-              />
-              <div className="doc-page-number">Page {i + 1}</div>
+          loading={
+            <div className="flex h-48 items-center justify-center font-mono text-[10px] uppercase tracking-caps text-fg-muted">
+              loading pdf
+              <span className="ml-2 [animation:dotPulse_1s_ease-in-out_infinite]">·</span>
             </div>
-          ))}
+          }
+          error={
+            <div className="flex h-48 items-center justify-center font-mono text-[10px] uppercase tracking-caps text-danger">
+              failed to load pdf
+            </div>
+          }
+        >
+          <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-6 py-8">
+            {Array.from({ length: numPages }, (_, i) => (
+              <div
+                key={i + 1}
+                data-page={i + 1}
+                className="relative w-full"
+              >
+                <Page
+                  pageNumber={i + 1}
+                  width={pageWidth}
+                  loading=""
+                  className="overflow-hidden rounded-md border border-border shadow-pop"
+                />
+                <div className="mt-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-caps text-fg-subtle">
+                  <span>page {i + 1}</span>
+                  <span>{numPages} total</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </Document>
       )}
 
       {isText && textContent !== null && (
-        <div className="doc-text-content">
-          <pre>{textContent}</pre>
+        <div className="mx-auto max-w-[72ch] px-10 py-12">
+          <pre className="whitespace-pre-wrap break-words text-base leading-body text-fg-default">
+            {textContent}
+          </pre>
         </div>
       )}
 
@@ -368,20 +383,17 @@ export default function DocumentViewer({
       {selectionPos && (
         <button
           ref={buttonRef}
-          className="ask-selection-btn"
+          className="ds-root fixed z-50 inline-flex items-center gap-1.5 rounded-sm border border-accent bg-accent px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-caps text-accent-fg shadow-pop transition-colors duration-quick ease-smooth hover:bg-accent-hover"
+          data-theme="dark"
           style={{
-            position: 'fixed',
             left: Math.max(16, Math.min(selectionPos.x, window.innerWidth - 160)),
             top: selectionPos.y - 12,
             transform: 'translate(-50%, -100%)',
-            zIndex: 1000,
           }}
-          onMouseDown={(e) => e.preventDefault()} // prevent stealing focus / deselecting
+          onMouseDown={(e) => e.preventDefault()}
           onClick={handleAskClick}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path d="M14.5 1.5L7 9M14.5 1.5L10 14.5L7 9M14.5 1.5L1.5 6L7 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <Sparkles size={11} strokeWidth={1.5} />
           Ask about this
         </button>
       )}

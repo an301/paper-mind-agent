@@ -1,0 +1,8 @@
+/* Design-system entry. Loads tokens, then Tailwind layers.
+   Kept separate from index.css so the legacy app remains untouched. */
+
+@import "./tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

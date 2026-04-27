@@ -1,0 +1,17 @@
+{
+  "_comment": "Frozen reading-positions fixture for the eval harness. Each runner overlays the question's `current_page_context` via build_reading_context(positions=...) at run time, so per-question max_page_read here is just a default of 0.",
+  "papers": {
+    "0a49ef88": {
+      "title": "One Diffusion to Generate Them All",
+      "total_pages": 12,
+      "current_page": 0,
+      "max_page_read": 0
+    },
+    "c29b4626": {
+      "title": "A Complete Recipe for Diffusion Generative Models",
+      "total_pages": 12,
+      "current_page": 0,
+      "max_page_read": 0
+    }
+  }
+}

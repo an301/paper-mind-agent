@@ -1,0 +1,369 @@
+{
+  "corpus_version": "v1.0",
+  "tool_families": {
+    "retrieval": ["parse_paper", "get_section", "get_sections_up_to", "search_paper", "get_paper_metadata"],
+    "kg_read": ["get_user_knowledge", "get_concept", "find_prerequisite_gaps", "get_learning_path", "get_related_concepts"],
+    "kg_write": ["add_concept", "update_confidence", "remove_concept"]
+  },
+  "questions": [
+    {
+      "id": "Q001",
+      "paper_id": "0a49ef88",
+      "paper_title": "One Diffusion to Generate Them All",
+      "question": "What architecture and positional encoding does OneDiffusion use, and how does it represent inputs?",
+      "gold_answer": "OneDiffusion uses the Next-DiT architecture (a full transformer-based model). Each frame (image or condition) is independently encoded as a latent z of shape RN×H×W×C using a VAE tokenizer, then concatenated along the N dimension. It applies 3D RoPE for positional encoding, which enables generalization to different resolutions and aspect ratios.",
+      "gold_answer_keypoints": [
+        "Next-DiT transformer-based architecture",
+        "VAE tokenizer encodes each view to a latent",
+        "3D RoPE positional encoding"
+      ],
+      "difficulty": "factual",
+      "expected_section": "implementation details (3.3)",
+      "current_page_context": 4,
+      "max_page_read": 4,
+      "must_not_spoil_pages_after": 4,
+      "spoiler_canaries": [
+        "GenEval",
+        "Unsplash-50",
+        "NYUv2",
+        "DepthAnything-2",
+        "AbsRel",
+        "PuLID",
+        "Acknowledgements"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q002",
+      "paper_id": "0a49ef88",
+      "paper_title": "One Diffusion to Generate Them All",
+      "question": "How does OneDiffusion frame multi-task generation as a single unified problem?",
+      "gold_answer": "OneDiffusion casts image generation with multimodal conditions as sequential modeling. All conditions and target images are jointly modeled as a sequence of N \"views\", where N depends on the task: N=1 for text-to-image, N=2 for image-to-image translation (depth/pose/edit), and N>2 for multiview generation or ID customization. During training, each view independently samples a noise timestep ti ~ LogNorm(0,1), giving different noise levels per view. At inference, any subset of views can be fixed as conditional inputs while the rest are generated from noise — the same model handles every task without task-specific modules.",
+      "gold_answer_keypoints": [
+        "models all conditions and target images as a sequence of views",
+        "N varies by task: N=1 for T2I, N=2 for image-to-image, N>2 for multiview/ID",
+        "different noise levels per view via independently sampled timesteps",
+        "any subset of views can be conditional or generated"
+      ],
+      "difficulty": "conceptual",
+      "expected_section": "methodology (3.2)",
+      "current_page_context": 3,
+      "max_page_read": 3,
+      "must_not_spoil_pages_after": 3,
+      "spoiler_canaries": [
+        "GenEval",
+        "Table 1",
+        "Unsplash-50",
+        "InstantID",
+        "PuLID",
+        "PhotoMaker",
+        "NYUv2",
+        "AbsRel",
+        "DepthAnything-2",
+        "Plücker"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q003",
+      "paper_id": "0a49ef88",
+      "paper_title": "One Diffusion to Generate Them All",
+      "question": "What three-stage training recipe does OneDiffusion use, and on what hardware?",
+      "gold_answer": "Three-stage recipe: (1) text-to-image pretraining at resolution 256² for 500K steps then 512² for 500K steps; (2) mixed-task continued training for 1M total steps using 512² for T2I and 256² for other tasks; (3) high-resolution T2I fine-tuning at 1024². Stages 1-2 run on a TPU v3-256 pod with global batch size 256; the final 1024² fine-tune runs on 64 H100 GPUs with the same configuration. The optimizer is AdamW with learning rate 0.0005, and the noise scheduler shift is set to 3.",
+      "gold_answer_keypoints": [
+        "Stage 1: T2I pretrain at 256² (500K steps) and 512² (500K steps)",
+        "Stage 2: mixed-task training at 512²/256² for 1M steps",
+        "Stage 3: high-res T2I fine-tune at 1024²",
+        "TPU v3-256 for stages 1-2; 64 H100 GPUs for stage 3"
+      ],
+      "difficulty": "factual",
+      "expected_section": "training details (3.3)",
+      "current_page_context": 5,
+      "max_page_read": 5,
+      "must_not_spoil_pages_after": 5,
+      "spoiler_canaries": [
+        "GenEval",
+        "Table 1",
+        "Table 2",
+        "Unsplash-50",
+        "InstantID",
+        "PuLID",
+        "NYUv2",
+        "AbsRel",
+        "DepthAnything-2",
+        "Acknowledgements"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q004",
+      "paper_id": "0a49ef88",
+      "paper_title": "One Diffusion to Generate Them All",
+      "question": "How does OneDiffusion's performance on multi-view generation compare to specialized methods, and what does the depth estimation comparison suggest about the unified-training trade-off?",
+      "gold_answer": "On multi-view generation (Google Scanned Object dataset): OneDiffusion outperforms Zero123 and Zero123-XL in the 1-view setting (PSNR 20.24 vs. 18.51/18.93). With more conditioning views it scales: 19.83 (2-view, unknown poses) → 20.22 (2-view, known) → 20.64 (3-view, unknown) → 21.79 (3-view, known). It still trails EscherNet, which is purpose-built for multi-view and reaches 22.91 (2-view) and 24.09 (3-view). On monocular depth (NYUv2): OneDiffusion gets AbsRel 6.8, competitive with diffusion-based Marigold (6.0) but behind dedicated DepthAnything-2 (4.6). Together this suggests the unified training trades single-task SOTA for breadth — OneDiffusion is competitive across many tasks without task-specific modules, but specialized models still win on their niche.",
+      "gold_answer_keypoints": [
+        "Multiview: outperforms Zero123/Zero123-XL on 1-view; scales with more views; trails EscherNet which is specialized",
+        "Depth (NYUv2): AbsRel 6.8, competitive with Marigold but trails DepthAnything-2",
+        "Unified training trades single-task SOTA for breadth across tasks"
+      ],
+      "difficulty": "multi_hop",
+      "expected_section": "experiments (5.3, 5.5)",
+      "current_page_context": 8,
+      "max_page_read": 8,
+      "must_not_spoil_pages_after": 8,
+      "spoiler_canaries": [
+        "Acknowledgements",
+        "NSF CAREER",
+        "Stephan Mandt acknowledges",
+        "References"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q005",
+      "paper_id": "0a49ef88",
+      "paper_title": "One Diffusion to Generate Them All",
+      "question": "Why are existing diffusion models hard to unify across tasks, and what's OneDiffusion's high-level approach to that?",
+      "gold_answer": "Existing diffusion models are typically trained individually for either text-to-image or specific tasks, and unification is hard for several reasons: (1) controllability methods like ControlNet and T2I-Adapter need specialized modules to encode conditional inputs; (2) personalization typically requires a pretrained face recognition network plus auxiliary losses; (3) tasks vary widely in input requirements — multi-view alone needs arbitrary input/output view combinations and camera pose conditioning, while depth/pose/segmentation produce different output structures; (4) training recipes are tightly task-tuned and don't generalize. OneDiffusion's high-level idea is to model all conditions and target images as a sequence of \"views\" with varying noise levels during training. At inference any view can be fixed as conditioning or set to noise to be generated. This single, simple framework removes the need for external add-ons, task-specific losses, or specialized architectures — and the same model performs both generation and prediction tasks (e.g., image→depth and depth→image).",
+      "gold_answer_keypoints": [
+        "Existing approaches require external modules (ControlNet, T2I-Adapter, face encoders, auxiliary losses)",
+        "Tasks vary widely in I/O requirements (views, depth, pose, segmentation)",
+        "OneDiffusion: model all conditions and targets as a sequence of views with varying noise levels",
+        "Removes need for task-specific architectures or losses"
+      ],
+      "difficulty": "conceptual",
+      "expected_section": "introduction (1)",
+      "current_page_context": 2,
+      "max_page_read": 2,
+      "must_not_spoil_pages_after": 2,
+      "spoiler_canaries": [
+        "flow matching",
+        "Next-DiT",
+        "VAE tokenizer",
+        "3D RoPE",
+        "GenEval",
+        "Table 1",
+        "Unsplash-50",
+        "NYUv2",
+        "AbsRel",
+        "Marigold",
+        "Plücker",
+        "AdamW"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q006",
+      "paper_id": "0a49ef88",
+      "paper_title": "One Diffusion to Generate Them All",
+      "question": "How does OneDiffusion's GenEval score compare to similarly-sized text-to-image models, and what's the relationship between parameter count and score in this benchmark?",
+      "gold_answer": "OneDiffusion has 2.8B parameters and scores 0.65 on GenEval. Among similarly-sized models it is the strongest: it beats LUMINA-Next (2.0B, 0.46), PixArt-α (0.6B, 0.54), SDXL (2.6B, 0.55), PlayGroundv2.5 (2.6B, 0.56), SD3-medium (2.0B, 0.62), and Hunyuan-DiT (1.5B, 0.63). It only trails the much larger FLUX models (12B): FLUX-dev 0.67 and FLUX-schnell 0.71, plus DALLE3 at 0.67. So at the 1-3B scale OneDiffusion sets a strong frontier; absolute SOTA still favors models that are ~4× larger. This is consistent with OneDiffusion using only 75M training images vs. FLUX's massive pretraining.",
+      "gold_answer_keypoints": [
+        "OneDiffusion: 2.8B params, GenEval 0.65",
+        "Beats similarly-sized: LUMINA-Next (2.0B/0.46), SDXL (2.6B/0.55), SD3-medium (2.0B/0.62), Hunyuan-DiT (1.5B/0.63)",
+        "Trails much larger FLUX (12B/0.67-0.71) and DALLE3 (0.67)",
+        "Strong at 1-3B scale; absolute SOTA still requires 4× more parameters"
+      ],
+      "difficulty": "multi_hop",
+      "expected_section": "experiments (5.1)",
+      "current_page_context": 7,
+      "max_page_read": 7,
+      "must_not_spoil_pages_after": 7,
+      "spoiler_canaries": [
+        "NYUv2",
+        "DIODE",
+        "AbsRel",
+        "DepthAnything-2",
+        "Marigold ranks",
+        "Conclusion",
+        "Acknowledgements",
+        "NSF CAREER"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q007",
+      "paper_id": "c29b4626",
+      "paper_title": "A Complete Recipe for Diffusion Generative Models",
+      "question": "What sample-quality results does PSLD achieve, and on which datasets?",
+      "gold_answer": "On unconditional CIFAR-10, PSLD achieves an FID of 2.10 and an IS of 9.93. On CelebA-64 it reaches FID 2.01. The paper also shows results on AFHQv2 at 128×128 resolution. The headline framing is that PSLD reaches sample quality comparable to state-of-the-art SGMs.",
+      "gold_answer_keypoints": [
+        "FID 2.10 on unconditional CIFAR-10",
+        "IS score 9.93 on CIFAR-10",
+        "FID 2.01 on CelebA-64",
+        "Also evaluated on AFHQv2 (128×128)"
+      ],
+      "difficulty": "factual",
+      "expected_section": "abstract / introduction",
+      "current_page_context": 2,
+      "max_page_read": 2,
+      "must_not_spoil_pages_after": 2,
+      "spoiler_canaries": [
+        "Theorem 2.1",
+        "Theorem 2.2",
+        "skew-symmetric",
+        "Hamiltonian",
+        "PSLD Training",
+        "critical damping condition",
+        "Table 4",
+        "Table 5",
+        "Γ = 0.02 to 0.04"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q008",
+      "paper_id": "c29b4626",
+      "paper_title": "A Complete Recipe for Diffusion Generative Models",
+      "question": "What's the key difference between PSLD and CLD in how they inject noise, and what's the critical damping condition for PSLD?",
+      "gold_answer": "CLD (Critically Damped Langevin Diffusion) injects stochastic noise only into the momentum component of phase space — the data dimension evolves deterministically. PSLD generalizes CLD by injecting noise into both the data and the momentum spaces simultaneously. CLD is recovered as a special case of PSLD by setting Γ=0 (and appropriate parameter remapping ν̄=Mν, β̄=β/2). For physical systems CLD's critical damping condition is ν²=4M; the paper derives the analogous condition for PSLD as (Γ−ν)²=4M⁻¹. Throughout the paper, Γ, ν, and M⁻¹ are chosen so this critical-damping condition holds.",
+      "gold_answer_keypoints": [
+        "CLD injects noise only into the momentum component",
+        "PSLD adds noise in both data and momentum spaces",
+        "PSLD generalizes CLD: Γ=0 recovers CLD",
+        "Critical damping condition for PSLD: (Γ−ν)²=4M⁻¹"
+      ],
+      "difficulty": "conceptual",
+      "expected_section": "model definition (3.1)",
+      "current_page_context": 4,
+      "max_page_read": 4,
+      "must_not_spoil_pages_after": 4,
+      "spoiler_canaries": [
+        "Table 1",
+        "Table 2",
+        "Table 3",
+        "AFHQv2 inpainting",
+        "Table 7",
+        "Conclusion",
+        "Acknowledgements"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q009",
+      "paper_id": "c29b4626",
+      "paper_title": "A Complete Recipe for Diffusion Generative Models",
+      "question": "What two theorems form the basis of the proposed \"complete recipe,\" and what does each one assert?",
+      "gold_answer": "Theorem 2.1 (Yin et al.): For the SDE with drift parameterized as f(z) = −(D(z) + Q(z))∇H + τ(z), where D(z) is positive semi-definite and Q(z) is skew-symmetric, the distribution ps(z) ∝ exp(−H(z)) is a stationary distribution of the dynamics. This gives sufficiency: any choice of D, Q in those classes yields a forward process converging to the desired ps. Theorem 2.2 (Ma et al.): Conversely, if a stochastic process with the given form converges to a unique stationary distribution ps(z), then under mild regularity assumptions there exists a corresponding skew-symmetric Q(z) such that f(z) takes the parameterized form. This gives completeness: the parameterization captures all forward processes that converge to ps. Together, the two theorems establish that the proposed recipe is both sound (always converges) and complete (covers every Markovian forward process that converges to the chosen target).",
+      "gold_answer_keypoints": [
+        "Theorem 2.1 (Yin et al.): drift f(z)=−(D+Q)∇H+τ with D PSD and Q skew-symmetric makes ps(z)∝exp(−H) stationary",
+        "Theorem 2.2 (Ma et al.): converse — every process converging to ps can be written in that form for some skew-symmetric Q",
+        "Together: parameterization is sound and complete for forward processes targeting ps"
+      ],
+      "difficulty": "factual",
+      "expected_section": "background (2.2)",
+      "current_page_context": 3,
+      "max_page_read": 3,
+      "must_not_spoil_pages_after": 3,
+      "spoiler_canaries": [
+        "PSLD Training",
+        "FID 2.10",
+        "Table 1",
+        "Table 2",
+        "AFHQv2",
+        "image inpainting",
+        "Table 7",
+        "Conclusion"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q010",
+      "paper_id": "c29b4626",
+      "paper_title": "A Complete Recipe for Diffusion Generative Models",
+      "question": "What gap in the existing diffusion-model literature does this paper address, and why was it open?",
+      "gold_answer": "The gap is that the design space of forward diffusion processes in score-based generative models was largely untapped, with existing constructions relying on physical heuristics (e.g., Langevin-style dynamics) or simplifying assumptions. Previous work (notably CLD) augmented the forward process with auxiliary variables to improve sample quality, but those designs were primarily motivated by physical intuition and it wasn't clear how to generalize them. There was no principled framework for systematically exploring which forward processes converge to a desired prior. The paper addresses this by deriving a complete parameterization, motivated by the design of stochastic-gradient MCMC samplers, that's guaranteed to converge to the target distribution for any valid choice of D and Q matrices — turning what was an ad-hoc design problem into a principled one.",
+      "gold_answer_keypoints": [
+        "Existing forward processes rely on physical heuristics or simplifying assumptions",
+        "No principled framework for exploring the design space",
+        "Prior auxiliary-variable extensions (e.g., CLD) were physically motivated and hard to generalize",
+        "This work provides a complete parameterization derived from MCMC sampler design"
+      ],
+      "difficulty": "conceptual",
+      "expected_section": "introduction (1)",
+      "current_page_context": 2,
+      "max_page_read": 2,
+      "must_not_spoil_pages_after": 2,
+      "spoiler_canaries": [
+        "Theorem 2.1",
+        "Theorem 2.2",
+        "skew-symmetric",
+        "Hamiltonian",
+        "phase space",
+        "PSLD Training",
+        "critical damping",
+        "Table 1",
+        "Table 4",
+        "AFHQv2 inpainting"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q011",
+      "paper_id": "c29b4626",
+      "paper_title": "A Complete Recipe for Diffusion Generative Models",
+      "question": "How does varying the parameter Γ affect PSLD's sample quality, and what's the theoretical explanation for that pattern?",
+      "gold_answer": "Empirically, a small non-zero Γ improves over CLD (Γ=0): on CIFAR-10 with EM-US sampling, FID drops from 3.60 (Γ=0) to 2.94 (Γ=0.01) to 2.80 (Γ=0.02). But quality degrades again as Γ grows further — at Γ=0.04 the FID climbs back to 2.95, and at the extreme Γ=4.25 with ν=0.25 quality collapses entirely. CelebA-64 shows the same pattern. Theoretically (Appendix D.1), in the EM sampler, a small non-zero Γ suppresses prediction errors from the data-space score predictor εθ^x(zt,t) at the cost of negligible additional errors from the momentum-space predictor εθ^m(zt,t). With larger Γ, the error contribution from εθ^x gets scaled by a significant factor, especially at low timesteps — which is exactly when high-frequency details are recovered, so over-large Γ degrades fine detail (visible qualitatively in Figure 2 for CelebA-64).",
+      "gold_answer_keypoints": [
+        "Small non-zero Γ improves over CLD (Γ=0): FID 3.60→2.80 on CIFAR-10",
+        "Optimal range — too high Γ degrades quality (Γ=0.04 worse than 0.02)",
+        "Theoretical reason: small Γ suppresses εθ^x prediction errors at negligible cost in εθ^m",
+        "Larger Γ scales εθ^x errors significantly especially at low timesteps, degrading high-frequency details"
+      ],
+      "difficulty": "multi_hop",
+      "expected_section": "experiments (4.2-4.3)",
+      "current_page_context": 7,
+      "max_page_read": 7,
+      "must_not_spoil_pages_after": 7,
+      "spoiler_canaries": [
+        "image inpainting",
+        "Table 7",
+        "AFHQv2 train",
+        "conditional generation with PSLD",
+        "Conclusion",
+        "Acknowledgements",
+        "future work"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    },
+    {
+      "id": "Q012",
+      "paper_id": "c29b4626",
+      "paper_title": "A Complete Recipe for Diffusion Generative Models",
+      "question": "How does PSLD's speed/sample-quality trade-off compare to its main baselines (CLD and VP-SDE) on CIFAR-10?",
+      "gold_answer": "PSLD has a strictly better speed-quality trade-off than both baselines across NFE budgets. Table 2 (ODE setup): PSLD with Γ=0.01 reaches FID 2.10 at 246 NFEs and FID 2.13 at just 159 NFEs, while CLD with Mixed Score needs 312 NFEs to hit FID 2.25 and VPSDE needs 141 NFEs for a worse FID 2.76. In the SDE / low-NFE regime (Table 5), at NFE=50 PSLD scores FID 19.94 (EM-QS) vs CLD's 25.01 and VP-SDE's 17.72; at NFE=100 PSLD 7.33 vs CLD 8.91 vs VP-SDE 7.45; PSLD wins at most NFE settings. With the SSCS sampler the gap widens further (PSLD 16.12 vs CLD 21.31 at NFE=50, EM-QS). Overall PSLD reaches comparable or better quality with significantly fewer function evaluations.",
+      "gold_answer_keypoints": [
+        "PSLD ODE: FID 2.10 at 246 NFEs and FID 2.13 at 159 NFEs",
+        "Outperforms CLD and VP-SDE across NFE budgets, especially in low-NFE regime",
+        "Better speed-quality tradeoff with both EM and SSCS samplers"
+      ],
+      "difficulty": "multi_hop",
+      "expected_section": "experiments (4.1-4.2)",
+      "current_page_context": 7,
+      "max_page_read": 7,
+      "must_not_spoil_pages_after": 7,
+      "spoiler_canaries": [
+        "image inpainting",
+        "Table 7",
+        "AFHQv2 train",
+        "conditional generation with PSLD",
+        "Conclusion",
+        "Acknowledgements",
+        "future work"
+      ],
+      "expected_tool_families": ["retrieval"],
+      "b1_eligible": true
+    }
+  ]
+}

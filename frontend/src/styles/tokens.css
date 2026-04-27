@@ -1,0 +1,246 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   paper-mind design tokens
+   ─────────────────────────────────────────────────────────────────────────
+   - Dark-first. Light variant is a curated derivation, not a CSS invert.
+   - Grayscale uses OKLCH so lightness is perceptually uniform across steps.
+   - One accent. Hover/active are precise OKLCH offsets, not opacity tricks.
+   - All component CSS reads from these variables. No hex in components.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@import "@fontsource-variable/geist/index.css";
+@import "@fontsource-variable/geist-mono/index.css";
+
+:root {
+  /* ── Type ─────────────────────────────────────────────────────────── */
+  --font-sans:
+    "Geist Variable", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* Tight scale. No in-between values. 13px is the workhorse. */
+  --text-xs:   12px; /* micro labels, captions */
+  --text-sm:   13px; /* default UI */
+  --text-md:   14px; /* secondary body */
+  --text-base: 16px; /* reading body */
+  --text-lg:   20px; /* section headings */
+  --text-xl:   28px; /* view headings */
+  --text-2xl:  40px; /* display */
+
+  /* Tracking — positive on micro all-caps, negative on display */
+  --tracking-caps:    0.06em;
+  --tracking-display: -0.02em;
+  --tracking-body:    0;
+
+  --leading-tight: 1.2;
+  --leading-snug:  1.4;
+  --leading-body:  1.6;
+
+  /* ── Radii ───────────────────────────────────────────────────────── */
+  --radius-sm: 4px; /* inputs, buttons */
+  --radius-md: 6px; /* small surfaces */
+  --radius-lg: 8px; /* large surfaces — never bigger */
+
+  /* ── Motion ──────────────────────────────────────────────────────── */
+  --ease-out:    cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-quick:   120ms; /* hover leave */
+  --dur-base:    160ms; /* UI feedback */
+  --dur-view:    320ms; /* view transitions */
+}
+
+/* ── Dark (default) ─────────────────────────────────────────────────── */
+.ds-root,
+.ds-root[data-theme="dark"] {
+  /* OKLCH grayscale ramp — slightly cool, true dark not pure black.
+     Step 0 is the canvas; step 11 is the brightest text. */
+  --gray-0:  oklch(0.145 0.003 264); /* #0A0A0B  canvas */
+  --gray-1:  oklch(0.175 0.004 264); /* #111114  elevated surface */
+  --gray-2:  oklch(0.205 0.005 264); /* #16171A  raised */
+  --gray-3:  oklch(0.245 0.006 264); /* #1D1F23  hover */
+  --gray-4:  oklch(0.295 0.007 264); /* #25272C  active / pressed */
+  --gray-5:  oklch(0.355 0.008 264); /* #2F3137  border-strong */
+  --gray-6:  oklch(0.435 0.009 264); /* #3D4047  hairline +1 */
+  --gray-7:  oklch(0.535 0.010 264); /* #4F5259  text-subtle */
+  --gray-8:  oklch(0.665 0.010 264); /* #696D75  text-muted */
+  --gray-9:  oklch(0.785 0.008 264); /* #8E9199  (light text on dark surfaces) */
+  --gray-10: oklch(0.880 0.006 264); /* #B7B9BF  text */
+  --gray-11: oklch(0.965 0.003 264); /* #ECEDEF  text-strong */
+
+  /* Semantic — every component reads these, never the raw scale */
+  --bg:            var(--gray-0);
+  --bg-elevated:   var(--gray-1);
+  --bg-raised:     var(--gray-2);
+  --bg-hover:      var(--gray-3);
+  --bg-active:     var(--gray-4);
+
+  --fg:            var(--gray-11);
+  --fg-default:    var(--gray-10);
+  --fg-muted:      var(--gray-8);
+  --fg-subtle:     var(--gray-7);
+
+  --border:        rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.10);
+
+  /* ── Accent: precise electric blue ────────────────────────────────
+     Specced in OKLCH so hue stays true across L variants. */
+  --accent:        oklch(0.66 0.21 254); /* #3D7BFF  (primary) */
+  --accent-hover:  oklch(0.71 0.20 254); /* lighter, snappier */
+  --accent-active: oklch(0.61 0.21 254); /* slightly compressed */
+  --accent-fg:     oklch(0.985 0.005 254); /* text on accent */
+  --accent-soft:   oklch(0.66 0.21 254 / 0.12); /* tinted bg */
+  --accent-ring:   oklch(0.66 0.21 254 / 0.40); /* focus rings */
+
+  /* Status — used sparingly */
+  --success:       oklch(0.74 0.17 152);
+  --warning:       oklch(0.80 0.16 86);
+  --danger:        oklch(0.66 0.22 25);
+
+  /* Elevation — shadows for popovers/menus only, never on cards */
+  --shadow-pop:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-modal:
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Light (derived, equally considered) ────────────────────────────── */
+.ds-root[data-theme="light"] {
+  --gray-0:  oklch(0.995 0.002 264); /* #FCFCFD */
+  --gray-1:  oklch(0.985 0.003 264);
+  --gray-2:  oklch(0.965 0.004 264);
+  --gray-3:  oklch(0.940 0.005 264);
+  --gray-4:  oklch(0.905 0.006 264);
+  --gray-5:  oklch(0.840 0.007 264);
+  --gray-6:  oklch(0.745 0.008 264);
+  --gray-7:  oklch(0.620 0.009 264);
+  --gray-8:  oklch(0.500 0.010 264);
+  --gray-9:  oklch(0.385 0.010 264);
+  --gray-10: oklch(0.245 0.008 264);
+  --gray-11: oklch(0.135 0.005 264);
+
+  --bg:            var(--gray-0);
+  --bg-elevated:   #FFFFFF;
+  --bg-raised:     var(--gray-1);
+  --bg-hover:      var(--gray-2);
+  --bg-active:     var(--gray-3);
+
+  --fg:            var(--gray-11);
+  --fg-default:    var(--gray-10);
+  --fg-muted:      var(--gray-8);
+  --fg-subtle:     var(--gray-7);
+
+  --border:        rgba(0, 0, 0, 0.07);
+  --border-strong: rgba(0, 0, 0, 0.12);
+
+  --accent:        oklch(0.58 0.22 254);
+  --accent-hover:  oklch(0.53 0.22 254);
+  --accent-active: oklch(0.49 0.22 254);
+  --accent-fg:     oklch(0.99 0.005 254);
+  --accent-soft:   oklch(0.66 0.21 254 / 0.10);
+  --accent-ring:   oklch(0.66 0.21 254 / 0.35);
+
+  --success:       oklch(0.55 0.18 152);
+  --warning:       oklch(0.68 0.16 86);
+  --danger:        oklch(0.58 0.22 25);
+
+  --shadow-pop:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-modal:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 24px 64px rgba(0, 0, 0, 0.10);
+}
+
+/* ── Scoped resets ───────────────────────────────────────────────────
+   Applied only inside a .ds-root subtree so the existing app keeps its
+   current styling. As surfaces migrate into the design system, they get
+   wrapped in .ds-root and inherit these. */
+
+.ds-root,
+.ds-root * {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.ds-root {
+  background: var(--bg);
+  color: var(--fg-default);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-body);
+  font-feature-settings: "ss01", "cv11";
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-root code,
+.ds-root kbd,
+.ds-root pre,
+.ds-root samp,
+.ds-root .font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "zero", "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-root ::selection {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+.ds-root :focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.ds-root ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.ds-root ::-webkit-scrollbar-thumb {
+  background: var(--gray-4);
+  border-radius: 99px;
+  border: 2px solid var(--bg);
+}
+.ds-root ::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-5);
+}
+
+/* ── Animations ──────────────────────────────────────────────────────
+   Used by Tooltip / Popover (Radix data-state) and the loading dot.
+   Defined globally because Radix portals render outside .ds-root. */
+
+@keyframes ds-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes ds-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes ds-pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes ds-pop-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.96); }
+}
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+
+[data-radix-popper-content-wrapper] [data-state="open"],
+[data-radix-popper-content-wrapper] [data-state="delayed-open"] {
+  animation: ds-pop-in var(--dur-base) var(--ease-out);
+}
+[data-radix-popper-content-wrapper] [data-state="closed"] {
+  animation: ds-pop-out var(--dur-quick) var(--ease-out);
+}

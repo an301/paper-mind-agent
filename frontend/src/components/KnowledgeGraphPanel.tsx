@@ -1,19 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getKnowledgeGraph } from '../api';
-import './KnowledgeGraphPanel.css';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpRight, RefreshCw, Search, X } from "lucide-react";
+import { cn } from "../design-system/util";
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  Input,
+  Kbd,
+} from "../design-system/primitives";
+import { getKnowledgeGraph } from "../api";
 
-interface KGNode {
+type Mastery = "solid" | "shaky" | "gap";
+
+interface ApiNode {
   id: string;
   confidence: number;
   source: string;
 }
 
-interface KGLink {
+interface ApiLink {
   source: string;
   target: string;
 }
 
-interface SimNode extends KGNode {
+interface SimNode extends ApiNode {
+  mastery: Mastery;
   x: number;
   y: number;
   vx: number;
@@ -21,93 +33,127 @@ interface SimNode extends KGNode {
   pinned: boolean;
 }
 
-// Placeholder concepts shown when the real graph is empty.
-// This lets the user see the visualization working before they've had any
-// conversations that build up the real graph.
-const PLACEHOLDER: { nodes: KGNode[]; links: KGLink[] } = {
+const MASTERY_COLOR: Record<Mastery, string> = {
+  solid: "#22c55e",
+  shaky: "#eab308",
+  gap:   "#ef4444",
+};
+
+function toMastery(confidence: number): Mastery {
+  if (confidence >= 0.66) return "solid";
+  if (confidence >= 0.33) return "shaky";
+  return "gap";
+}
+
+/** Placeholder shown while the real graph is empty — gives the panel life. */
+const PLACEHOLDER: { nodes: ApiNode[]; links: ApiLink[] } = {
   nodes: [
-    { id: 'diffusion models', confidence: 0.7, source: 'OneDiffusion, page 2' },
-    { id: 'denoising', confidence: 0.5, source: 'OneDiffusion, page 3' },
-    { id: 'forward process', confidence: 0.4, source: 'OneDiffusion, page 3' },
-    { id: 'reverse process', confidence: 0.3, source: 'OneDiffusion, page 3' },
-    { id: 'text-to-image', confidence: 0.6, source: 'OneDiffusion, page 1' },
-    { id: 'gaussian noise', confidence: 0.8, source: 'prerequisite' },
-    { id: 'neural networks', confidence: 0.9, source: 'prerequisite' },
-    { id: 'UNet architecture', confidence: 0.4, source: 'prerequisite' },
-    { id: 'attention', confidence: 0.5, source: 'prerequisite' },
-    { id: 'embeddings', confidence: 0.6, source: 'prerequisite' },
+    { id: "diffusion models",     confidence: 0.75, source: "prerequisite" },
+    { id: "denoising",            confidence: 0.55, source: "OneDiffusion, p3" },
+    { id: "forward process",      confidence: 0.48, source: "OneDiffusion, p3" },
+    { id: "reverse process",      confidence: 0.38, source: "OneDiffusion, p3" },
+    { id: "text-to-image",        confidence: 0.62, source: "OneDiffusion, p1" },
+    { id: "gaussian noise",       confidence: 0.82, source: "prerequisite" },
+    { id: "neural networks",      confidence: 0.90, source: "prerequisite" },
+    { id: "U-Net",                confidence: 0.44, source: "prerequisite" },
+    { id: "attention",            confidence: 0.55, source: "prerequisite" },
+    { id: "embeddings",           confidence: 0.60, source: "prerequisite" },
   ],
   links: [
-    { source: 'diffusion models', target: 'denoising' },
-    { source: 'denoising', target: 'forward process' },
-    { source: 'denoising', target: 'reverse process' },
-    { source: 'forward process', target: 'gaussian noise' },
-    { source: 'reverse process', target: 'neural networks' },
-    { source: 'reverse process', target: 'UNet architecture' },
-    { source: 'UNet architecture', target: 'neural networks' },
-    { source: 'text-to-image', target: 'diffusion models' },
-    { source: 'text-to-image', target: 'embeddings' },
-    { source: 'text-to-image', target: 'attention' },
-    { source: 'attention', target: 'neural networks' },
+    { source: "diffusion models",  target: "denoising" },
+    { source: "denoising",          target: "forward process" },
+    { source: "denoising",          target: "reverse process" },
+    { source: "forward process",    target: "gaussian noise" },
+    { source: "reverse process",    target: "neural networks" },
+    { source: "reverse process",    target: "U-Net" },
+    { source: "U-Net",              target: "neural networks" },
+    { source: "text-to-image",      target: "diffusion models" },
+    { source: "text-to-image",      target: "embeddings" },
+    { source: "text-to-image",      target: "attention" },
+    { source: "attention",          target: "neural networks" },
   ],
 };
 
-function confidenceColor(c: number): string {
-  // Red (low) -> yellow (mid) -> green (high)
-  if (c < 0.33) return '#ef4444';
-  if (c < 0.66) return '#eab308';
-  return '#22c55e';
-}
-
-function confidenceLabel(c: number): string {
-  if (c < 0.25) return 'gap';
-  if (c < 0.5) return 'shaky';
-  if (c < 0.75) return 'comfortable';
-  return 'solid';
-}
-
 export default function KnowledgeGraphPanel() {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [dims, setDims] = useState({ w: 800, h: 600 });
-  const [rawGraph, setRawGraph] = useState<{ nodes: KGNode[]; links: KGLink[] }>(PLACEHOLDER);
-  const [isPlaceholder, setIsPlaceholder] = useState(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<SimNode[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [edges, setEdges] = useState<ApiLink[]>([]);
+  const [camera, setCamera] = useState({ x: 0, y: 0, z: 1 });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Set<Mastery>>(
+    new Set(["solid", "shaky", "gap"]),
+  );
+  const [query, setQuery] = useState("");
+  const [dims, setDims] = useState({ w: 800, h: 600 });
   const [loading, setLoading] = useState(false);
+  const [isPlaceholder, setIsPlaceholder] = useState(false);
+  const [pageLast, setPageLast] = useState<number>(Date.now());
+  const dragRef = useRef<{
+    mode: "none" | "node" | "pan";
+    id?: string;
+    startX: number;
+    startY: number;
+    camX: number;
+    camY: number;
+  }>({ mode: "none", startX: 0, startY: 0, camX: 0, camY: 0 });
 
-  const dragState = useRef<{
-    id: string | null;
-    offsetX: number;
-    offsetY: number;
-  }>({ id: null, offsetX: 0, offsetY: 0 });
-
-  // Track container size so layout adapts to panel width
+  // Measure container
   useEffect(() => {
-    if (!svgRef.current?.parentElement) return;
-    const el = svgRef.current.parentElement;
-    const observer = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) setDims({ w: width, h: height });
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      if (r.width > 0 && r.height > 0) setDims({ w: r.width, h: r.height });
     });
-    observer.observe(el);
-    return () => observer.disconnect();
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
   }, []);
 
-  // Fetch real graph; fall back to placeholder if empty or error
-  const loadGraph = useCallback(async () => {
+  // Load graph — real first, placeholder if empty
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getKnowledgeGraph();
-      if (data.nodes && data.nodes.length > 0) {
-        setRawGraph(data);
-        setIsPlaceholder(false);
-      } else {
-        setRawGraph(PLACEHOLDER);
-        setIsPlaceholder(true);
-      }
+      const src =
+        data.nodes && data.nodes.length > 0
+          ? { nodes: data.nodes, links: data.links || [] }
+          : PLACEHOLDER;
+      setIsPlaceholder(data.nodes?.length ? false : true);
+      const n = src.nodes.length;
+      setNodes(
+        src.nodes.map((nn: ApiNode, i: number) => {
+          const angle = (i / Math.max(n, 1)) * Math.PI * 2;
+          return {
+            ...nn,
+            mastery: toMastery(nn.confidence),
+            x: Math.cos(angle) * 240,
+            y: Math.sin(angle) * 240,
+            vx: 0,
+            vy: 0,
+            pinned: false,
+          };
+        }),
+      );
+      setEdges(src.links);
+      setPageLast(Date.now());
     } catch {
-      setRawGraph(PLACEHOLDER);
+      const n = PLACEHOLDER.nodes.length;
+      setNodes(
+        PLACEHOLDER.nodes.map((nn, i) => {
+          const angle = (i / n) * Math.PI * 2;
+          return {
+            ...nn,
+            mastery: toMastery(nn.confidence),
+            x: Math.cos(angle) * 240,
+            y: Math.sin(angle) * 240,
+            vx: 0,
+            vy: 0,
+            pinned: false,
+          };
+        }),
+      );
+      setEdges(PLACEHOLDER.links);
       setIsPlaceholder(true);
     } finally {
       setLoading(false);
@@ -115,437 +161,567 @@ export default function KnowledgeGraphPanel() {
   }, []);
 
   useEffect(() => {
-    loadGraph();
-  }, [loadGraph]);
+    load();
+  }, [load]);
 
-  // Initialize node positions whenever the graph data changes
-  useEffect(() => {
-    const cx = dims.w / 2;
-    const cy = dims.h / 2;
-    const r = Math.min(dims.w, dims.h) * 0.3;
-    setNodes(
-      rawGraph.nodes.map((n, i) => {
-        const angle = (i / Math.max(rawGraph.nodes.length, 1)) * Math.PI * 2;
-        return {
-          ...n,
-          x: cx + Math.cos(angle) * r,
-          y: cy + Math.sin(angle) * r,
-          vx: 0,
-          vy: 0,
-          pinned: false,
-        };
-      })
-    );
-  }, [rawGraph, dims.w, dims.h]);
-
-  // Force simulation — runs continuously until roughly at rest
+  // Physics
   useEffect(() => {
     if (nodes.length === 0) return;
-
     let raf = 0;
-    const REPULSION = 6000;
-    const SPRING = 0.04;
-    const REST_LEN = 110;
-    const CENTER = 0.005;
-    const DAMP = 0.82;
-
     const tick = () => {
       setNodes((prev) => {
         if (prev.length === 0) return prev;
         const next = prev.map((n) => ({ ...n }));
         const byId = new Map(next.map((n) => [n.id, n]));
-        const cx = dims.w / 2;
-        const cy = dims.h / 2;
-
-        // Pairwise repulsion (O(n²), fine for small graphs)
         for (let i = 0; i < next.length; i++) {
           for (let j = i + 1; j < next.length; j++) {
-            const a = next[i];
-            const b = next[j];
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
+            const a = next[i], b = next[j];
+            const dx = b.x - a.x, dy = b.y - a.y;
             let d2 = dx * dx + dy * dy;
             if (d2 < 1) d2 = 1;
             const d = Math.sqrt(d2);
-            const f = REPULSION / d2;
-            const fx = (f * dx) / d;
-            const fy = (f * dy) / d;
-            if (!a.pinned) {
-              a.vx -= fx;
-              a.vy -= fy;
-            }
-            if (!b.pinned) {
-              b.vx += fx;
-              b.vy += fy;
-            }
+            const f = 12000 / d2;
+            if (!a.pinned) { a.vx -= (f * dx) / d; a.vy -= (f * dy) / d; }
+            if (!b.pinned) { b.vx += (f * dx) / d; b.vy += (f * dy) / d; }
           }
         }
-
-        // Spring along edges
-        for (const link of rawGraph.links) {
-          const a = byId.get(link.source);
-          const b = byId.get(link.target);
+        for (const e of edges) {
+          const a = byId.get(e.source), b = byId.get(e.target);
           if (!a || !b) continue;
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
+          const dx = b.x - a.x, dy = b.y - a.y;
           const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          const f = SPRING * (d - REST_LEN);
-          const fx = (f * dx) / d;
-          const fy = (f * dy) / d;
-          if (!a.pinned) {
-            a.vx += fx;
-            a.vy += fy;
-          }
-          if (!b.pinned) {
-            b.vx -= fx;
-            b.vy -= fy;
-          }
+          const f = 0.025 * (d - 130);
+          if (!a.pinned) { a.vx += (f * dx) / d; a.vy += (f * dy) / d; }
+          if (!b.pinned) { b.vx -= (f * dx) / d; b.vy -= (f * dy) / d; }
         }
-
-        // Gravity toward center
         for (const n of next) {
-          if (n.pinned) continue;
-          n.vx += (cx - n.x) * CENTER;
-          n.vy += (cy - n.y) * CENTER;
-        }
-
-        // Integrate + damp + clamp to bounds
-        for (const n of next) {
-          if (n.pinned) {
-            n.vx = 0;
-            n.vy = 0;
-            continue;
-          }
+          if (n.pinned) { n.vx = 0; n.vy = 0; continue; }
+          n.vx += -n.x * 0.002;
+          n.vy += -n.y * 0.002;
           n.x += n.vx;
           n.y += n.vy;
-          n.vx *= DAMP;
-          n.vy *= DAMP;
-          const PAD = 40;
-          if (n.x < PAD) {
-            n.x = PAD;
-            n.vx = 0;
-          }
-          if (n.x > dims.w - PAD) {
-            n.x = dims.w - PAD;
-            n.vx = 0;
-          }
-          if (n.y < PAD) {
-            n.y = PAD;
-            n.vy = 0;
-          }
-          if (n.y > dims.h - PAD) {
-            n.y = dims.h - PAD;
-            n.vy = 0;
-          }
+          n.vx *= 0.82;
+          n.vy *= 0.82;
         }
-
         return next;
       });
       raf = requestAnimationFrame(tick);
     };
-
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-    // Intentionally only run when graph topology / size changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawGraph, dims.w, dims.h, nodes.length]);
+  }, [edges, nodes.length, pageLast]);
 
-  // Drag handlers — pin the node while dragging so the sim respects the cursor
-  const handleNodeMouseDown = (e: React.MouseEvent, node: SimNode) => {
-    e.stopPropagation();
-    const svg = svgRef.current;
-    if (!svg) return;
-    const pt = svg.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return;
-    const p = pt.matrixTransform(ctm.inverse());
-    dragState.current = {
-      id: node.id,
-      offsetX: p.x - node.x,
-      offsetY: p.y - node.y,
-    };
-    setNodes((prev) =>
-      prev.map((n) => (n.id === node.id ? { ...n, pinned: true } : n))
+  const matched = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const bySearch = q
+      ? new Set(
+          nodes.filter((n) => n.id.toLowerCase().includes(q)).map((n) => n.id),
+        )
+      : null;
+    const byFilter = new Set(
+      nodes.filter((n) => filter.has(n.mastery)).map((n) => n.id),
     );
-  };
-
-  const handleSvgMouseMove = (e: React.MouseEvent) => {
-    const dragging = dragState.current;
-    if (!dragging.id) return;
-    const svg = svgRef.current;
-    if (!svg) return;
-    const pt = svg.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return;
-    const p = pt.matrixTransform(ctm.inverse());
-    setNodes((prev) =>
-      prev.map((n) =>
-        n.id === dragging.id
-          ? { ...n, x: p.x - dragging.offsetX, y: p.y - dragging.offsetY }
-          : n
-      )
-    );
-  };
-
-  const handleSvgMouseUp = () => {
-    const id = dragState.current.id;
-    if (!id) return;
-    dragState.current = { id: null, offsetX: 0, offsetY: 0 };
-    setNodes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, pinned: false } : n))
-    );
-  };
-
-  const handleSvgClick = () => setSelected(null);
-
-  const handleNodeClick = (e: React.MouseEvent, node: SimNode) => {
-    e.stopPropagation();
-    setSelected((prev) => (prev === node.id ? null : node.id));
-  };
-
-  // Connected-nodes set — used to highlight when hovering/selecting
-  const highlightSet = useMemo(() => {
-    const active = selected || hovered;
-    if (!active) return null;
-    const set = new Set<string>([active]);
-    for (const link of rawGraph.links) {
-      if (link.source === active) set.add(link.target);
-      if (link.target === active) set.add(link.source);
+    if (bySearch) {
+      const inter = new Set<string>();
+      bySearch.forEach((id) => byFilter.has(id) && inter.add(id));
+      return inter;
     }
-    return set;
-  }, [selected, hovered, rawGraph.links]);
+    return byFilter;
+  }, [nodes, query, filter]);
 
-  const selectedNode = useMemo(
-    () => nodes.find((n) => n.id === selected) ?? null,
-    [nodes, selected]
-  );
+  const selected = nodes.find((n) => n.id === selectedId) ?? null;
+  const neighborIds = useMemo(() => {
+    const active = selectedId ?? hoverId;
+    if (!active) return null;
+    const s = new Set<string>([active]);
+    for (const e of edges) {
+      if (e.source === active) s.add(e.target);
+      if (e.target === active) s.add(e.source);
+    }
+    return s;
+  }, [selectedId, hoverId, edges]);
 
-  // Details for the side panel
-  const selectedDetails = useMemo(() => {
-    if (!selectedNode) return null;
-    const incoming = rawGraph.links
-      .filter((l) => l.target === selectedNode.id)
-      .map((l) => l.source);
-    const outgoing = rawGraph.links
-      .filter((l) => l.source === selectedNode.id)
-      .map((l) => l.target);
-    return { incoming, outgoing };
-  }, [selectedNode, rawGraph.links]);
+  // Canvas render
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = dims.w * dpr;
+    canvas.height = dims.h * dpr;
+    canvas.style.width = `${dims.w}px`;
+    canvas.style.height = `${dims.h}px`;
+    const ctx = canvas.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    let raf = 0;
+    const draw = () => {
+      ctx.clearRect(0, 0, dims.w, dims.h);
+      ctx.save();
+      ctx.translate(dims.w / 2 + camera.x, dims.h / 2 + camera.y);
+      ctx.scale(camera.z, camera.z);
+
+      for (const e of edges) {
+        const a = nodes.find((n) => n.id === e.source);
+        const b = nodes.find((n) => n.id === e.target);
+        if (!a || !b) continue;
+        const active =
+          !neighborIds ||
+          (neighborIds.has(a.id) && neighborIds.has(b.id));
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.quadraticCurveTo(mx - dy * 0.08, my + dx * 0.08, b.x, b.y);
+        ctx.strokeStyle = active
+          ? "rgba(255,255,255,0.28)"
+          : "rgba(255,255,255,0.06)";
+        ctx.lineWidth = 1 / camera.z;
+        ctx.stroke();
+      }
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (const n of nodes) {
+        const inMatch = matched.has(n.id);
+        const inNeighbor = !neighborIds || neighborIds.has(n.id);
+        const visible = inMatch && inNeighbor;
+        const isSel = n.id === selectedId;
+        const isHover = n.id === hoverId;
+
+        ctx.save();
+        ctx.globalAlpha = visible ? 1 : 0.12;
+
+        const weight =
+          n.mastery === "solid" ? 500 : n.mastery === "shaky" ? 400 : 300;
+        const size = isSel ? 15 : 13;
+        ctx.font = `${weight} ${size}px "Geist Variable", sans-serif`;
+
+        const w = ctx.measureText(n.id).width;
+        if (isSel || isHover) {
+          ctx.fillStyle = isSel ? "rgba(61,123,255,0.14)" : "rgba(255,255,255,0.05)";
+          const pad = 8;
+          roundRect(ctx, n.x - w / 2 - pad, n.y - size / 2 - 5, w + pad * 2, size + 10, 4);
+          ctx.fill();
+        }
+
+        // Mastery dot
+        ctx.beginPath();
+        ctx.arc(n.x - w / 2 - 8, n.y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = MASTERY_COLOR[n.mastery];
+        ctx.fill();
+
+        // Label
+        ctx.fillStyle =
+          n.mastery === "gap" ? "rgba(180,180,185,0.65)" :
+          n.mastery === "shaky" ? "rgba(220,220,225,0.88)" :
+          "rgba(236,237,239,1)";
+        if (isSel) ctx.fillStyle = "rgba(236,237,239,1)";
+        ctx.fillText(n.id, n.x, n.y);
+        ctx.restore();
+      }
+
+      ctx.restore();
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [nodes, edges, dims, camera, selectedId, hoverId, neighborIds, matched]);
+
+  // Ease camera to selected
+  useEffect(() => {
+    if (!selectedId) return;
+    const n = nodes.find((x) => x.id === selectedId);
+    if (!n) return;
+    const targetX = -n.x * camera.z;
+    const targetY = -n.y * camera.z;
+    const startX = camera.x, startY = camera.y;
+    const t0 = performance.now();
+    let raf = 0;
+    const step = (t: number) => {
+      const p = Math.min(1, (t - t0) / 320);
+      const e = 1 - Math.pow(1 - p, 3);
+      setCamera((c) => ({
+        ...c,
+        x: startX + (targetX - startX) * e,
+        y: startY + (targetY - startY) * e,
+      }));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  const pickNode = (px: number, py: number): SimNode | null => {
+    const wx = (px - dims.w / 2 - camera.x) / camera.z;
+    const wy = (py - dims.h / 2 - camera.y) / camera.z;
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const ctx = canvas.getContext("2d")!;
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const n = nodes[i];
+      ctx.font = `500 13px "Geist Variable", sans-serif`;
+      const w = ctx.measureText(n.id).width;
+      if (
+        wx >= n.x - w / 2 - 10 &&
+        wx <= n.x + w / 2 + 10 &&
+        wy >= n.y - 10 &&
+        wy <= n.y + 10
+      ) {
+        return n;
+      }
+    }
+    return null;
+  };
+
+  const onDown = (e: React.PointerEvent) => {
+    const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const hit = pickNode(x, y);
+    if (hit) {
+      setNodes((prev) =>
+        prev.map((n) => (n.id === hit.id ? { ...n, pinned: true } : n)),
+      );
+      dragRef.current = { mode: "node", id: hit.id, startX: x, startY: y, camX: 0, camY: 0 };
+    } else {
+      dragRef.current = { mode: "pan", startX: x, startY: y, camX: camera.x, camY: camera.y };
+    }
+  };
+
+  const onMove = (e: React.PointerEvent) => {
+    const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const d = dragRef.current;
+    if (d.mode === "node" && d.id) {
+      const wx = (x - dims.w / 2 - camera.x) / camera.z;
+      const wy = (y - dims.h / 2 - camera.y) / camera.z;
+      setNodes((prev) =>
+        prev.map((n) => (n.id === d.id ? { ...n, x: wx, y: wy } : n)),
+      );
+    } else if (d.mode === "pan") {
+      setCamera((c) => ({ ...c, x: d.camX + (x - d.startX), y: d.camY + (y - d.startY) }));
+    } else {
+      const hit = pickNode(x, y);
+      setHoverId(hit?.id ?? null);
+    }
+  };
+
+  const onUp = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const moved = Math.hypot(x - d.startX, y - d.startY) > 4;
+    if (d.mode === "node" && d.id) {
+      setNodes((prev) =>
+        prev.map((n) => (n.id === d.id ? { ...n, pinned: false } : n)),
+      );
+      if (!moved) setSelectedId(d.id);
+    } else if (d.mode === "pan" && !moved) {
+      setSelectedId(null);
+    }
+    dragRef.current = { mode: "none", startX: 0, startY: 0, camX: 0, camY: 0 };
+  };
+
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    setCamera((c) => ({
+      ...c,
+      z: Math.max(0.35, Math.min(2.5, c.z * Math.exp(-e.deltaY * 0.001))),
+    }));
+  };
+
+  const toggleFilter = (m: Mastery) =>
+    setFilter((f) => {
+      const n = new Set(f);
+      n.has(m) ? n.delete(m) : n.add(m);
+      return n.size === 0 ? new Set(["solid", "shaky", "gap"]) : n;
+    });
+
+  const counts = useMemo(() => {
+    const c = { solid: 0, shaky: 0, gap: 0 };
+    for (const n of nodes) c[n.mastery]++;
+    return c;
+  }, [nodes]);
 
   return (
-    <div className="kg-panel-interactive">
+    <div className="relative flex h-full w-full flex-col bg-bg">
       {/* Toolbar */}
-      <div className="kg-toolbar">
-        <div className="kg-toolbar-left">
-          <span className="kg-title">Knowledge Graph</span>
+      <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-bg-elevated px-4">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-caps text-fg-muted">
+            knowledge graph
+          </span>
+          <Badge>
+            {nodes.length} concept{nodes.length === 1 ? "" : "s"}
+          </Badge>
           {isPlaceholder && (
-            <span className="kg-pill">Placeholder — chat to build your real graph</span>
-          )}
-          {!isPlaceholder && (
-            <span className="kg-pill kg-pill-live">
-              {rawGraph.nodes.length} concepts · {rawGraph.links.length} connections
-            </span>
+            <Badge tone="accent" variant="outline">
+              placeholder
+            </Badge>
           )}
         </div>
-        <div className="kg-toolbar-right">
-          <div className="kg-legend">
-            <span className="kg-legend-item">
-              <span className="kg-dot" style={{ background: '#ef4444' }} /> gap
-            </span>
-            <span className="kg-legend-item">
-              <span className="kg-dot" style={{ background: '#eab308' }} /> shaky
-            </span>
-            <span className="kg-legend-item">
-              <span className="kg-dot" style={{ background: '#22c55e' }} /> solid
-            </span>
-          </div>
-          <button className="kg-btn" onClick={loadGraph} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
+        <div className="flex items-center gap-2">
+          <Input
+            size="sm"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter concepts…"
+            leadingIcon={<Search size={13} strokeWidth={1.5} />}
+            className="w-56"
+          />
+          <div className="mx-1 h-5 w-px bg-border" />
+          <FilterChip
+            mastery="solid"
+            active={filter.has("solid")}
+            count={counts.solid}
+            onClick={() => toggleFilter("solid")}
+          />
+          <FilterChip
+            mastery="shaky"
+            active={filter.has("shaky")}
+            count={counts.shaky}
+            onClick={() => toggleFilter("shaky")}
+          />
+          <FilterChip
+            mastery="gap"
+            active={filter.has("gap")}
+            count={counts.gap}
+            onClick={() => toggleFilter("gap")}
+          />
+          <div className="mx-1 h-5 w-px bg-border" />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={load}
+            disabled={loading}
+            leadingIcon={<RefreshCw size={13} strokeWidth={1.5} />}
+          >
+            {loading ? "Loading…" : "Refresh"}
+          </Button>
         </div>
-      </div>
+      </header>
 
-      <div className="kg-canvas-wrap">
-        <svg
-          ref={svgRef}
-          className="kg-canvas"
-          width={dims.w}
-          height={dims.h}
-          onMouseMove={handleSvgMouseMove}
-          onMouseUp={handleSvgMouseUp}
-          onMouseLeave={handleSvgMouseUp}
-          onClick={handleSvgClick}
+      <div className="relative flex-1 overflow-hidden">
+        <div
+          ref={containerRef}
+          className="h-full w-full"
+          style={{ cursor: hoverId ? "pointer" : "grab" }}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerLeave={onUp}
+          onWheel={onWheel}
         >
-          <defs>
-            <marker
-              id="kg-arrow"
-              viewBox="0 0 10 10"
-              refX="9"
-              refY="5"
-              markerWidth="6"
-              markerHeight="6"
-              orient="auto"
-            >
-              <path d="M0,0 L10,5 L0,10 Z" fill="rgba(255,255,255,0.35)" />
-            </marker>
-          </defs>
+          <canvas ref={canvasRef} className="block" />
+        </div>
 
-          {/* Edges */}
-          <g>
-            {rawGraph.links.map((link, i) => {
-              const a = nodes.find((n) => n.id === link.source);
-              const b = nodes.find((n) => n.id === link.target);
-              if (!a || !b) return null;
-              const active =
-                !highlightSet ||
-                (highlightSet.has(a.id) && highlightSet.has(b.id));
-              return (
-                <line
-                  key={i}
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  stroke={active ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.08)'}
-                  strokeWidth={active ? 1.6 : 1}
-                  markerEnd="url(#kg-arrow)"
-                />
-              );
-            })}
-          </g>
+        {/* Tip chip */}
+        <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-border bg-bg-elevated px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-caps text-fg-muted">
+          <Kbd keys="click" size="sm" /> select
+          <Kbd keys="drag" size="sm" /> move
+          <Kbd keys="scroll" size="sm" /> zoom
+        </div>
 
-          {/* Nodes */}
-          <g>
-            {nodes.map((n) => {
-              const r = 14 + n.confidence * 14;
-              const color = confidenceColor(n.confidence);
-              const dim = highlightSet && !highlightSet.has(n.id);
-              const isSel = selected === n.id;
-              return (
-                <g
-                  key={n.id}
-                  transform={`translate(${n.x},${n.y})`}
-                  style={{ cursor: 'pointer', opacity: dim ? 0.25 : 1 }}
-                  onMouseDown={(e) => handleNodeMouseDown(e, n)}
-                  onMouseEnter={() => setHovered(n.id)}
-                  onMouseLeave={() => setHovered(null)}
-                  onClick={(e) => handleNodeClick(e, n)}
-                >
-                  {/* Glow for selected */}
-                  {isSel && (
-                    <circle
-                      r={r + 8}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth={2}
-                      opacity={0.5}
-                    />
-                  )}
-                  <circle
-                    r={r}
-                    fill={color}
-                    stroke="rgba(255,255,255,0.6)"
-                    strokeWidth={isSel ? 2 : 1}
-                  />
-                  <text
-                    y={r + 14}
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize={11}
-                    fontWeight={500}
-                    style={{ pointerEvents: 'none', userSelect: 'none' }}
-                  >
-                    {n.id.length > 22 ? n.id.slice(0, 22) + '…' : n.id}
-                  </text>
-                </g>
-              );
-            })}
-          </g>
-        </svg>
-
-        {/* Side panel — appears when a node is selected */}
-        {selectedNode && selectedDetails && (
-          <div className="kg-sidepanel">
-            <div className="kg-sidepanel-header">
-              <h3>{selectedNode.id}</h3>
-              <button
-                className="kg-close"
-                onClick={() => setSelected(null)}
-                aria-label="Close"
-              >
-                &#x2715;
-              </button>
-            </div>
-
-            <div className="kg-stat-row">
-              <div
-                className="kg-confidence-bar"
-                style={{
-                  background: `linear-gradient(to right, ${confidenceColor(
-                    selectedNode.confidence
-                  )} ${selectedNode.confidence * 100}%, rgba(255,255,255,0.1) ${
-                    selectedNode.confidence * 100
-                  }%)`,
-                }}
-              />
-              <span className="kg-stat-value">
-                {(selectedNode.confidence * 100).toFixed(0)}% · {confidenceLabel(selectedNode.confidence)}
-              </span>
-            </div>
-
-            {selectedNode.source && (
-              <div className="kg-meta">
-                <span className="kg-meta-label">Source</span>
-                <span className="kg-meta-value">{selectedNode.source}</span>
-              </div>
+        {/* Detail side panel */}
+        {selected && (
+          <aside
+            className={cn(
+              "absolute right-3 top-3 w-[320px]",
+              "animate-[ds-pop-in_var(--dur-base)_var(--ease-out)]",
             )}
+          >
+            <Card bare>
+              <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+                <div className="min-w-0">
+                  <Badge
+                    tone={
+                      selected.mastery === "gap"
+                        ? "danger"
+                        : selected.mastery === "shaky"
+                          ? "warning"
+                          : "success"
+                    }
+                    dot
+                  >
+                    {selected.mastery} · {(selected.confidence * 100).toFixed(0)}%
+                  </Badge>
+                  <h3 className="mt-2 text-sm font-medium text-fg">
+                    {selected.id}
+                  </h3>
+                  {selected.source && (
+                    <p className="mt-1 text-xs text-fg-muted">{selected.source}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedId(null)}
+                  className="rounded-sm p-1 text-fg-muted hover:bg-bg-hover hover:text-fg"
+                  aria-label="Close"
+                >
+                  <X size={13} strokeWidth={1.5} />
+                </button>
+              </header>
+              <CardBody>
+                <div className="mb-4">
+                  <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-caps text-fg-subtle">
+                    <span>confidence</span>
+                    <span className="text-fg-default">
+                      {(selected.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1 rounded-full bg-bg-raised">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${selected.confidence * 100}%`,
+                        background: MASTERY_COLOR[selected.mastery],
+                        transition: "width var(--dur-view) var(--ease-out)",
+                      }}
+                    />
+                  </div>
+                </div>
 
-            <div className="kg-section">
-              <h4>Depends on ({selectedDetails.outgoing.length})</h4>
-              {selectedDetails.outgoing.length === 0 ? (
-                <p className="kg-section-empty">No prerequisites</p>
-              ) : (
-                <ul>
-                  {selectedDetails.outgoing.map((id) => (
-                    <li key={id}>
-                      <button
-                        className="kg-link-btn"
-                        onClick={() => setSelected(id)}
-                      >
-                        {id}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="kg-section">
-              <h4>Used by ({selectedDetails.incoming.length})</h4>
-              {selectedDetails.incoming.length === 0 ? (
-                <p className="kg-section-empty">Nothing depends on this yet</p>
-              ) : (
-                <ul>
-                  {selectedDetails.incoming.map((id) => (
-                    <li key={id}>
-                      <button
-                        className="kg-link-btn"
-                        onClick={() => setSelected(id)}
-                      >
-                        {id}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+                <RelationList
+                  label="Depends on"
+                  ids={edges.filter((e) => e.source === selected.id).map((e) => e.target)}
+                  nodes={nodes}
+                  onPick={setSelectedId}
+                />
+                <RelationList
+                  label="Used by"
+                  ids={edges.filter((e) => e.target === selected.id).map((e) => e.source)}
+                  nodes={nodes}
+                  onPick={setSelectedId}
+                />
+              </CardBody>
+            </Card>
+          </aside>
         )}
       </div>
     </div>
   );
+}
+
+function RelationList({
+  label,
+  ids,
+  nodes,
+  onPick,
+}: {
+  label: string;
+  ids: string[];
+  nodes: SimNode[];
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 flex items-center justify-between font-mono text-[10px] uppercase tracking-caps text-fg-subtle">
+        <span>{label}</span>
+        <span>{ids.length}</span>
+      </div>
+      {ids.length === 0 ? (
+        <p className="text-xs text-fg-subtle">—</p>
+      ) : (
+        <div className="space-y-1">
+          {ids.map((id) => {
+            const n = nodes.find((x) => x.id === id);
+            return (
+              <button
+                key={id}
+                onClick={() => onPick(id)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs text-fg-default",
+                  "transition-colors duration-quick ease-smooth hover:bg-bg-hover",
+                )}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: n ? MASTERY_COLOR[n.mastery] : "#888" }}
+                  />
+                  {id}
+                </span>
+                <ArrowUpRight
+                  size={11}
+                  strokeWidth={1.5}
+                  className="text-fg-subtle"
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterChip({
+  mastery,
+  active,
+  count,
+  onClick,
+}: {
+  mastery: Mastery;
+  active: boolean;
+  count: number;
+  onClick: () => void;
+}) {
+  const bg =
+    mastery === "solid"
+      ? "rgba(34,197,94,0.10)"
+      : mastery === "shaky"
+        ? "rgba(234,179,8,0.10)"
+        : "rgba(239,68,68,0.10)";
+  const border =
+    mastery === "solid"
+      ? "rgba(34,197,94,0.5)"
+      : mastery === "shaky"
+        ? "rgba(234,179,8,0.5)"
+        : "rgba(239,68,68,0.5)";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-2 rounded-sm border px-2 py-1",
+        "font-mono text-[10px] uppercase tracking-caps",
+        "transition-colors duration-quick ease-smooth",
+        active ? "text-fg" : "text-fg-muted hover:bg-bg-hover",
+      )}
+      style={
+        active
+          ? { background: bg, borderColor: border }
+          : { borderColor: "var(--border)" }
+      }
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ background: MASTERY_COLOR[mastery] }}
+      />
+      {mastery}
+      <span className="text-fg-subtle">{count}</span>
+    </button>
+  );
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }

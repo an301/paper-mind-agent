@@ -1,15 +1,26 @@
-import { useState, useCallback, useRef } from 'react';
-import UploadZone from './components/UploadZone';
-import DocumentViewer from './components/DocumentViewer';
-import ChatPanel, { type Message } from './components/ChatPanel';
-import KnowledgeGraphPanel from './components/KnowledgeGraphPanel';
+import { useCallback, useRef, useState } from "react";
+import {
+  FileText,
+  AlertTriangle,
+  Loader2,
+  Network,
+  X,
+} from "lucide-react";
+import UploadZone from "./components/UploadZone";
+import DocumentViewer from "./components/DocumentViewer";
+import ChatPanel, {
+  type Message,
+  type TraceStep,
+} from "./components/ChatPanel";
+import KnowledgeGraphPanel from "./components/KnowledgeGraphPanel";
 import {
   uploadPaper,
   sendChatMessage,
   updateReadingPosition,
   type StreamEvent,
-} from './api';
-import './App.css';
+} from "./api";
+import { cn } from "./design-system/util";
+import { Badge, Button, Input, Kbd } from "./design-system/primitives";
 
 interface Paper {
   id: string;
@@ -17,34 +28,31 @@ interface Paper {
   file: File;
   url: string;
   backendPaperId: string | null;
-  status: 'uploading' | 'ready' | 'error';
+  status: "uploading" | "ready" | "error";
   sections: string[];
 }
 
-type Tab = 'paper' | 'graph';
+type Tab = "paper" | "graph";
 
-function App() {
+export default function App() {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [activePaperId, setActivePaperId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('paper');
-  const [messagesByPaper, setMessagesByPaper] = useState<Record<string, Message[]>>({});
-  const [sessionsByPaper, setSessionsByPaper] = useState<Record<string, string>>({});
+  const [tab, setTab] = useState<Tab>("paper");
+  const [messagesByPaper, setMessagesByPaper] = useState<
+    Record<string, Message[]>
+  >({});
+  const [sessionsByPaper, setSessionsByPaper] = useState<
+    Record<string, string>
+  >({});
   const [isTyping, setIsTyping] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  // Per-paper reading positions, keyed by local paper id.
-  // Holds live current page, max page reached, and total pages.
+  const [chatInput, setChatInput] = useState("");
   const [positionsByPaper, setPositionsByPaper] = useState<
     Record<string, { current: number; max: number; total: number }>
   >({});
-  // Per-paper live line snippet — the text nearest the viewport center.
-  // This is the "exactly where the user is" signal the agent uses.
   const [lineByPaper, setLineByPaper] = useState<
     Record<string, { snippet: string; page: number }>
   >({});
   const [selectionContext, setSelectionContext] = useState<string | null>(null);
-  // Ref to track the streaming assistant message ID
-  const streamingMsgId = useRef<string | null>(null);
-  // Throttle timer for persisting reading position to the backend
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activePaper = papers.find((p) => p.id === activePaperId) ?? null;
@@ -55,25 +63,23 @@ function App() {
     ? positionsByPaper[activePaperId] || { current: 0, max: 0, total: 0 }
     : { current: 0, max: 0, total: 0 };
 
+  /* ── Upload flow ─────────────────────────────────────────────── */
   const handleFileUpload = async (file: File) => {
     const localUrl = URL.createObjectURL(file);
     const localId = Date.now().toString();
-
     const paper: Paper = {
       id: localId,
-      name: file.name.replace(/\.[^/.]+$/, ''),
+      name: file.name.replace(/\.[^/.]+$/, ""),
       file,
       url: localUrl,
       backendPaperId: null,
-      status: 'uploading',
+      status: "uploading",
       sections: [],
     };
-
     setPapers((prev) => [...prev, paper]);
     setActivePaperId(localId);
-    setActiveTab('paper');
+    setTab("paper");
 
-    // Upload to backend
     try {
       const result = await uploadPaper(file);
       setPapers((prev) =>
@@ -84,16 +90,16 @@ function App() {
                 backendPaperId: result.paper_id,
                 name: result.title || p.name,
                 sections: result.section_names,
-                status: 'ready' as const,
+                status: "ready" as const,
               }
-            : p
-        )
+            : p,
+        ),
       );
     } catch {
       setPapers((prev) =>
         prev.map((p) =>
-          p.id === localId ? { ...p, status: 'error' as const } : p
-        )
+          p.id === localId ? { ...p, status: "error" as const } : p,
+        ),
       );
     }
   };
@@ -113,6 +119,7 @@ function App() {
     }
   };
 
+  /* ── Chat flow ───────────────────────────────────────────────── */
   const appendMessage = useCallback((paperId: string, message: Message) => {
     setMessagesByPaper((prev) => ({
       ...prev,
@@ -120,20 +127,18 @@ function App() {
     }));
   }, []);
 
-  const updateLastMessage = useCallback((paperId: string, text: string) => {
-    setMessagesByPaper((prev) => {
-      const msgs = prev[paperId] || [];
-      if (msgs.length === 0) return prev;
-      const last = msgs[msgs.length - 1];
-      return {
-        ...prev,
-        [paperId]: [
-          ...msgs.slice(0, -1),
-          { ...last, content: last.content + text },
-        ],
-      };
-    });
-  }, []);
+  const updateAssistant = useCallback(
+    (paperId: string, msgId: string, updater: (m: Message) => Message) => {
+      setMessagesByPaper((prev) => {
+        const msgs = prev[paperId] || [];
+        return {
+          ...prev,
+          [paperId]: msgs.map((m) => (m.id === msgId ? updater(m) : m)),
+        };
+      });
+    },
+    [],
+  );
 
   const handleSendMessage = useCallback(
     async (text: string) => {
@@ -142,62 +147,88 @@ function App() {
       const paperId = activePaperId;
       const context = selectionContext;
 
-      // Build message with context
       let fullMessage = text;
       if (context) {
         fullMessage = `[Highlighted text from the paper: "${context}"]\n\n${text}`;
       }
 
-      // Add user message to UI
       const userMessage: Message = {
-        id: Date.now().toString(),
-        role: 'user',
+        id: `u-${Date.now()}`,
+        role: "user",
         content: text,
         context: context || undefined,
       };
       appendMessage(paperId, userMessage);
-      setChatInput('');
+      setChatInput("");
       setSelectionContext(null);
       setIsTyping(true);
 
-      // Create placeholder assistant message for streaming
-      const assistantMsgId = (Date.now() + 1).toString();
-      streamingMsgId.current = assistantMsgId;
+      const assistantId = `a-${Date.now() + 1}`;
       const assistantMessage: Message = {
-        id: assistantMsgId,
-        role: 'assistant',
-        content: '',
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        trace: [],
       };
       appendMessage(paperId, assistantMessage);
 
-      // Send to backend and stream response
       const sessionId = sessionsByPaper[paperId] || null;
       const paper = papers.find((p) => p.id === paperId);
       const pos = positionsByPaper[paperId];
       const line = lineByPaper[paperId];
       const currentPaperId = paper?.backendPaperId ?? null;
       const currentPage = pos?.current ?? 0;
-      const currentLine = line?.snippet ?? '';
+      const currentLine = line?.snippet ?? "";
 
       try {
         const returnedSessionId = await sendChatMessage(
           fullMessage,
           sessionId,
           (event: StreamEvent) => {
-            if (event.type === 'token' && event.text) {
-              updateLastMessage(paperId, event.text);
-            } else if (event.type === 'tool_call') {
-              // Show tool call as a status in the message
-              const toolNote = `\n\n*Using ${event.name}...*\n\n`;
-              updateLastMessage(paperId, toolNote);
+            if (event.type === "token" && event.text) {
+              const t = event.text;
+              updateAssistant(paperId, assistantId, (m) => ({
+                ...m,
+                content: m.content + t,
+              }));
+            } else if (event.type === "tool_call") {
+              const step: TraceStep = {
+                id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                name: event.name || "unknown_tool",
+                input: event.input || {},
+                startedAt: performance.now(),
+              };
+              updateAssistant(paperId, assistantId, (m) => {
+                // Close out the previous open step
+                const prevTrace = m.trace ?? [];
+                const closed = prevTrace.map((s, i) =>
+                  i === prevTrace.length - 1 && !s.endedAt
+                    ? { ...s, endedAt: performance.now() }
+                    : s,
+                );
+                return { ...m, trace: [...closed, step] };
+              });
             }
           },
           currentPaperId,
           currentPage,
-          currentLine
+          currentLine,
         );
 
-        // Store session ID for future messages
+        // Close out the final pending step when done
+        updateAssistant(paperId, assistantId, (m) => {
+          const trace = m.trace ?? [];
+          if (trace.length === 0) return m;
+          const last = trace[trace.length - 1];
+          if (last.endedAt) return m;
+          return {
+            ...m,
+            trace: trace.map((s, i) =>
+              i === trace.length - 1 ? { ...s, endedAt: performance.now() } : s,
+            ),
+          };
+        });
+
         if (returnedSessionId) {
           setSessionsByPaper((prev) => ({
             ...prev,
@@ -205,14 +236,15 @@ function App() {
           }));
         }
       } catch (err) {
-        const errorText = err instanceof Error ? err.message : 'Unknown error';
-        updateLastMessage(
-          paperId,
-          `\n\n**Error:** ${errorText}. Make sure the backend is running: \`uvicorn backend.api:app --reload\``
-        );
+        const errorText = err instanceof Error ? err.message : "Unknown error";
+        updateAssistant(paperId, assistantId, (m) => ({
+          ...m,
+          content:
+            m.content +
+            `\n\n**Error:** ${errorText}. Make sure the backend is running: \`uvicorn backend.api:app --reload\``,
+        }));
       }
 
-      streamingMsgId.current = null;
       setIsTyping(false);
     },
     [
@@ -221,28 +253,16 @@ function App() {
       selectionContext,
       sessionsByPaper,
       appendMessage,
-      updateLastMessage,
+      updateAssistant,
       papers,
       positionsByPaper,
       lineByPaper,
-    ]
+    ],
   );
 
   const handleSelectContext = useCallback((text: string) => {
     setSelectionContext(text);
   }, []);
-
-  const handleCurrentLineChange = useCallback(
-    (snippet: string, page: number) => {
-      const paperId = activePaperId;
-      if (!paperId) return;
-      setLineByPaper((prev) => {
-        if (prev[paperId]?.snippet === snippet) return prev;
-        return { ...prev, [paperId]: { snippet, page } };
-      });
-    },
-    [activePaperId]
-  );
 
   const handleReadingPositionChange = useCallback(
     (current: number, max: number, total: number) => {
@@ -254,11 +274,8 @@ function App() {
         [paperId]: { current, max, total },
       }));
 
-      // Throttle persistence to avoid hammering the backend while scrolling.
-      // Coalesce bursts into one POST ~500ms after the last scroll event.
       const paper = papers.find((p) => p.id === paperId);
       if (!paper?.backendPaperId) return;
-
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
       persistTimerRef.current = setTimeout(() => {
         updateReadingPosition({
@@ -266,160 +283,248 @@ function App() {
           title: paper.name,
           current_page: current,
           total_pages: total,
-        }).catch(() => {
-          // Non-critical: position persistence failing shouldn't break the UI
-        });
+        }).catch(() => {});
       }, 500);
     },
-    [activePaperId, papers]
+    [activePaperId, papers],
   );
 
+  const handleCurrentLineChange = useCallback(
+    (snippet: string, page: number) => {
+      const paperId = activePaperId;
+      if (!paperId) return;
+      setLineByPaper((prev) => {
+        if (prev[paperId]?.snippet === snippet) return prev;
+        return { ...prev, [paperId]: { snippet, page } };
+      });
+    },
+    [activePaperId],
+  );
+
+  /* ── Render ──────────────────────────────────────────────────── */
   return (
-    <div className="app">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div className="logo">
-            <i className="ph-fill ph-brain" style={{ fontSize: 16 }}></i>
+    <div className="ds-root h-screen overflow-hidden" data-theme="dark">
+      <div className="flex h-full">
+        {/* Sidebar — library */}
+        <aside className="flex w-[260px] shrink-0 flex-col border-r border-border bg-bg-elevated">
+          <div className="flex h-11 items-center gap-2 border-b border-border px-4">
+            <span className="h-2 w-2 rounded-full bg-accent" />
+            <span className="text-sm font-medium text-fg">paper-mind</span>
+            <Badge variant="outline" tone="accent">alpha</Badge>
           </div>
-          <h1>Research Mind</h1>
-          <span>alpha</span>
-        </div>
 
-        <div className="sidebar-content">
-          <UploadZone onFileUpload={handleFileUpload} />
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-3">
+              <UploadZone onFileUpload={handleFileUpload} />
+            </div>
 
-          <div className="papers-section">
-            <h2>Library</h2>
-            <div className="papers-list">
+            <div className="px-3">
+              <div className="mb-2 flex items-center justify-between px-1 font-mono text-[10px] uppercase tracking-caps text-fg-subtle">
+                <span>library</span>
+                <span>{papers.length}</span>
+              </div>
               {papers.length === 0 ? (
-                <p className="no-papers">No papers uploaded yet</p>
+                <p className="px-1 py-2 text-xs text-fg-muted">
+                  No papers yet. Drop one above to get started.
+                </p>
               ) : (
-                papers.map((paper) => (
-                  <div
-                    key={paper.id}
-                    className={`paper-item ${paper.id === activePaperId ? 'active' : ''}`}
-                    onClick={() => {
-                      setActivePaperId(paper.id);
-                      setActiveTab('paper');
-                    }}
-                  >
-                    <span className="icon">
-                      <i
-                        className={
-                          paper.status === 'uploading'
-                            ? 'ph ph-spinner'
-                            : paper.status === 'error'
-                              ? 'ph ph-warning'
-                              : 'ph-fill ph-file-pdf'
-                        }
-                        style={{
-                          color:
-                            paper.status === 'error'
-                              ? 'var(--danger)'
-                              : paper.status === 'uploading'
-                                ? 'var(--text-muted)'
-                                : paper.id === activePaperId
-                                  ? '#f87171'
-                                  : 'var(--text-muted)',
+                <ul className="space-y-0.5">
+                  {papers.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        className={cn(
+                          "group flex w-full items-start gap-2 rounded-sm px-2 py-2 text-left",
+                          "transition-colors duration-quick ease-smooth",
+                          p.id === activePaperId
+                            ? "bg-accent-soft text-fg"
+                            : "text-fg-default hover:bg-bg-hover",
+                        )}
+                        onClick={() => {
+                          setActivePaperId(p.id);
+                          setTab("paper");
                         }}
-                      ></i>
-                    </span>
-                    <span className="name">{paper.name}</span>
-                    <button
-                      className="remove-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemovePaper(paper.id);
-                      }}
-                    >
-                      &#x2715;
-                    </button>
-                  </div>
-                ))
+                      >
+                        <span className="mt-0.5 shrink-0 text-fg-muted">
+                          {p.status === "uploading" ? (
+                            <Loader2
+                              size={13}
+                              strokeWidth={1.5}
+                              className="animate-spin"
+                            />
+                          ) : p.status === "error" ? (
+                            <AlertTriangle
+                              size={13}
+                              strokeWidth={1.5}
+                              className="text-danger"
+                            />
+                          ) : (
+                            <FileText size={13} strokeWidth={1.5} />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm">{p.name}</span>
+                          <span className="block font-mono text-[10px] uppercase tracking-caps text-fg-subtle">
+                            {p.status === "uploading"
+                              ? "parsing"
+                              : p.status === "error"
+                                ? "error"
+                                : `${p.sections.length || "—"} sections`}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemovePaper(p.id);
+                          }}
+                          className="rounded-sm p-1 text-fg-subtle opacity-0 transition-opacity duration-quick ease-smooth group-hover:opacity-100 hover:bg-bg-active hover:text-fg"
+                          aria-label="Remove paper"
+                        >
+                          <X size={11} strokeWidth={1.5} />
+                        </button>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </div>
-        </div>
-      </aside>
 
-      {/* Main area */}
-      <main className="main">
-        <div className="topbar">
-          <span className="paper-title">
-            {activePaper ? activePaper.name : 'No paper selected'}
-          </span>
-          {activePaper?.status === 'uploading' && (
-            <span className="reading-badge parsing">Parsing...</span>
-          )}
-          {readingPosition.total > 0 &&
-            activeTab === 'paper' &&
-            activePaper?.status === 'ready' && (
-              <span className="reading-badge">
-                Page {readingPosition.current} / {readingPosition.total}
-                {readingPosition.max > readingPosition.current &&
-                  ` · max ${readingPosition.max}`}
-              </span>
-            )}
-          {activeTab === 'paper' &&
-            activePaper?.status === 'ready' &&
-            activePaperId &&
-            lineByPaper[activePaperId]?.snippet && (
-              <span
-                className="reading-badge"
-                title={lineByPaper[activePaperId].snippet}
-                style={{ maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              >
-                Reading: &ldquo;{lineByPaper[activePaperId].snippet}&rdquo;
-              </span>
-            )}
-          <div className="tab-group">
-            <button
-              className={`tab ${activeTab === 'paper' ? 'active' : ''}`}
-              onClick={() => setActiveTab('paper')}
-            >
-              <i className="ph ph-file-text"></i> Paper
-            </button>
-            <button
-              className={`tab ${activeTab === 'graph' ? 'active' : ''}`}
-              onClick={() => setActiveTab('graph')}
-            >
-              <i className="ph ph-graph"></i> Knowledge Graph
-            </button>
-          </div>
-        </div>
-
-        <div className="content">
-          {activeTab === 'paper' ? (
-            <div className="paper-view">
-              <div className="doc-container">
-                <DocumentViewer
-                  fileUrl={activePaper?.url ?? null}
-                  fileName={activePaper ? activePaper.file.name : null}
-                  onReadingPositionChange={handleReadingPositionChange}
-                  onCurrentLineChange={handleCurrentLineChange}
-                  onSelectContext={handleSelectContext}
-                />
-              </div>
-              <div className="chat-container">
-                <ChatPanel
-                  messages={currentMessages}
-                  isTyping={isTyping}
-                  onSendMessage={handleSendMessage}
-                  input={chatInput}
-                  onInputChange={setChatInput}
-                  selectionContext={selectionContext}
-                  onClearContext={() => setSelectionContext(null)}
-                />
-              </div>
+          <footer className="border-t border-border p-3">
+            <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-caps text-fg-subtle">
+              <span>press</span>
+              <Kbd keys="cmd+k" size="sm" />
             </div>
-          ) : (
-            <KnowledgeGraphPanel />
-          )}
-        </div>
-      </main>
+          </footer>
+        </aside>
+
+        {/* Main */}
+        <main className="flex min-w-0 flex-1 flex-col">
+          {/* Topbar */}
+          <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-bg-elevated px-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="truncate text-sm text-fg">
+                {activePaper ? activePaper.name : "No paper selected"}
+              </span>
+              {activePaper?.status === "uploading" && (
+                <Badge dot tone="accent">parsing</Badge>
+              )}
+              {readingPosition.total > 0 &&
+                tab === "paper" &&
+                activePaper?.status === "ready" && (
+                  <span className="font-mono text-[10px] uppercase tracking-caps text-fg-subtle">
+                    page {readingPosition.current} / {readingPosition.total}
+                    {readingPosition.max > readingPosition.current &&
+                      ` · max ${readingPosition.max}`}
+                  </span>
+                )}
+              {activePaperId &&
+                lineByPaper[activePaperId]?.snippet &&
+                tab === "paper" && (
+                  <span
+                    className="max-w-[420px] truncate font-mono text-[10px] text-fg-muted"
+                    title={lineByPaper[activePaperId].snippet}
+                  >
+                    &ldquo;{lineByPaper[activePaperId].snippet}&rdquo;
+                  </span>
+                )}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0 rounded-sm border border-border bg-bg p-0.5">
+                <TabButton
+                  active={tab === "paper"}
+                  onClick={() => setTab("paper")}
+                  icon={<FileText size={12} strokeWidth={1.5} />}
+                  label="Paper"
+                />
+                <TabButton
+                  active={tab === "graph"}
+                  onClick={() => setTab("graph")}
+                  icon={<Network size={12} strokeWidth={1.5} />}
+                  label="Graph"
+                />
+              </div>
+              <Input
+                size="sm"
+                placeholder="Jump to…"
+                trailingIcon={<Kbd keys="cmd+k" size="sm" />}
+                className="w-52"
+                onFocus={(e) => {
+                  e.currentTarget.blur();
+                  // Delegate to the global Cmd-K palette
+                  window.dispatchEvent(
+                    new KeyboardEvent("keydown", { key: "k", metaKey: true }),
+                  );
+                }}
+                readOnly
+              />
+            </div>
+          </header>
+
+          {/* Content */}
+          <div className="flex min-h-0 flex-1">
+            {tab === "paper" ? (
+              <>
+                <div className="min-w-0 flex-1">
+                  <DocumentViewer
+                    fileUrl={activePaper?.url ?? null}
+                    fileName={activePaper ? activePaper.file.name : null}
+                    onReadingPositionChange={handleReadingPositionChange}
+                    onCurrentLineChange={handleCurrentLineChange}
+                    onSelectContext={handleSelectContext}
+                  />
+                </div>
+                <div className="w-[400px] shrink-0">
+                  <ChatPanel
+                    messages={currentMessages}
+                    isTyping={isTyping}
+                    onSendMessage={handleSendMessage}
+                    input={chatInput}
+                    onInputChange={setChatInput}
+                    selectionContext={selectionContext}
+                    onClearContext={() => setSelectionContext(null)}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="min-w-0 flex-1">
+                <KnowledgeGraphPanel />
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
 
-export default App;
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-6 items-center gap-1.5 rounded-sm px-2",
+        "font-mono text-[10px] uppercase tracking-caps",
+        "transition-colors duration-quick ease-smooth",
+        active
+          ? "bg-accent-soft text-fg"
+          : "text-fg-muted hover:text-fg",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+

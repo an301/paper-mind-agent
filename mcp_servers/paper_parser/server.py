@@ -6,6 +6,38 @@ server = FastMCP("paper-parser")
 store = PaperStore()
 
 
+def _section_visible_at(paper, section_name, max_page):
+    """Return (visible, reason) for whether a section is visible at max_page.
+
+    A section is visible if it starts on or before page `max_page`. We use the
+    section's start char-offset relative to the page-boundary char-offsets
+    captured at parse time. Returns (True, "") if visible (or max_page is
+    None / paper has no page_starts), else (False, "<refusal message>").
+    """
+    if max_page is None:
+        return True, ""
+    page_starts = paper.get("page_starts")
+    if not page_starts:
+        return True, ""
+    num_pages = len(page_starts) - 1
+    if max_page < 1:
+        return False, f"max_page={max_page} is invalid (must be >= 1)."
+    if max_page >= num_pages:
+        return True, ""  # whole paper visible
+    page_boundary = page_starts[max_page]
+    offsets = paper.get("section_offsets", {})
+    so = offsets.get(section_name)
+    if so is None:
+        return True, ""  # no offset info — fail open
+    section_start = so[0]
+    if section_start >= page_boundary:
+        return False, (
+            f"[Spoiler guardrail] Section '{section_name}' begins after page {max_page} — "
+            "the user has not read this content yet. Do not reveal what's in it."
+        )
+    return True, ""
+
+
 # ============================================================
 # Tool 1: parse_paper
 # ============================================================
@@ -35,15 +67,17 @@ def parse_paper(pdf_path: str, paper_id: str = "default") -> str:
 # ============================================================
 
 @server.tool()
-def get_section(section_name: str, paper_id: str = "default") -> str:
+def get_section(section_name: str, paper_id: str = "default", max_page: int | None = None) -> str:
     """Retrieve a specific section from the parsed paper.
 
-    Automatically updates the reading position — the user has now
-    "seen" this section and everything before it.
+    Pass `max_page` (= the user's max page read from [Reading Context]) to
+    enforce the spoiler rule server-side. Sections that begin past
+    `max_page` will be refused; the agent literally cannot read them.
 
     Args:
         section_name: Name of the section (e.g. 'abstract', 'introduction')
         paper_id: Optional paper identifier
+        max_page: User's max page read; if set, sections beyond this page are refused
     """
     paper = store.get_paper(paper_id)
     if not paper:
@@ -51,12 +85,16 @@ def get_section(section_name: str, paper_id: str = "default") -> str:
 
     section_name = section_name.lower().strip()
 
-    if section_name in paper["sections"]:
-        store.update_read_position(section_name, paper_id)
-        return paper["sections"][section_name]
+    if section_name not in paper["sections"]:
+        available = ", ".join(paper["section_order"])
+        return f"Section '{section_name}' not found. Available sections: {available}"
 
-    available = ", ".join(paper["section_order"])
-    return f"Section '{section_name}' not found. Available sections: {available}"
+    visible, reason = _section_visible_at(paper, section_name, max_page)
+    if not visible:
+        return reason
+
+    store.update_read_position(section_name, paper_id)
+    return paper["sections"][section_name]
 
 
 # ============================================================
@@ -64,17 +102,18 @@ def get_section(section_name: str, paper_id: str = "default") -> str:
 # ============================================================
 
 @server.tool()
-def get_sections_up_to(section_name: str = "", paper_id: str = "default") -> str:
+def get_sections_up_to(section_name: str = "", paper_id: str = "default", max_page: int | None = None) -> str:
     """Retrieve all sections from the beginning up to and including
     the specified section. Use this to respect the user's reading
     position — only provide information from sections they've read.
 
-    If no section_name is provided, returns all sections the user
-    has read so far (based on automatic reading position tracking).
+    Pass `max_page` to enforce the spoiler rule server-side: any section
+    beginning past `max_page` will be omitted from the result.
 
     Args:
         section_name: The last section to include (optional)
         paper_id: Optional paper identifier
+        max_page: User's max page read; sections beyond this page are filtered out
     """
     paper = store.get_paper(paper_id)
     if not paper:
@@ -84,6 +123,9 @@ def get_sections_up_to(section_name: str = "", paper_id: str = "default") -> str
         read_sections = store.get_read_sections(paper_id)
         if not read_sections:
             return "No sections have been read yet."
+        if max_page is not None:
+            read_sections = {n: c for n, c in read_sections.items()
+                             if _section_visible_at(paper, n, max_page)[0]}
         return json.dumps(read_sections, indent=2)
 
     section_name = section_name.lower().strip()
@@ -93,10 +135,16 @@ def get_sections_up_to(section_name: str = "", paper_id: str = "default") -> str
         available = ", ".join(order)
         return f"Section '{section_name}' not found. Available sections: {available}"
 
+    visible, reason = _section_visible_at(paper, section_name, max_page)
+    if not visible:
+        return reason
+
     target_index = order.index(section_name)
     result = {}
     for i in range(target_index + 1):
         name = order[i]
+        if max_page is not None and not _section_visible_at(paper, name, max_page)[0]:
+            continue
         result[name] = paper["sections"][name]
 
     store.update_read_position(section_name, paper_id)
@@ -108,16 +156,16 @@ def get_sections_up_to(section_name: str = "", paper_id: str = "default") -> str
 # ============================================================
 
 @server.tool()
-def search_paper(query: str, paper_id: str = "default") -> str:
+def search_paper(query: str, paper_id: str = "default", max_page: int | None = None) -> str:
     """Search the paper for paragraphs containing the query text.
-    Returns matching paragraphs with their section names.
 
-    Currently keyword-based. Will be upgraded to semantic search
-    with embeddings in a later phase.
+    Pass `max_page` to enforce the spoiler rule server-side: matches in
+    sections that begin past `max_page` are filtered out.
 
     Args:
         query: Text to search for in the paper
         paper_id: Optional paper identifier
+        max_page: User's max page read; matches in later sections are filtered out
     """
     paper = store.get_paper(paper_id)
     if not paper:
@@ -127,6 +175,8 @@ def search_paper(query: str, paper_id: str = "default") -> str:
     results = []
 
     for section_name, content in paper["sections"].items():
+        if max_page is not None and not _section_visible_at(paper, section_name, max_page)[0]:
+            continue
         paragraphs = content.split("\n\n")
         for paragraph in paragraphs:
             if query_lower in paragraph.lower():

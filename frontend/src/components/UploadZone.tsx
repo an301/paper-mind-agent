@@ -1,82 +1,120 @@
-import { useState, useRef, useCallback } from 'react';
-import './UploadZone.css';
+import { useCallback, useRef, useState } from "react";
+import { FileUp, Upload } from "lucide-react";
+import { cn } from "../design-system/util";
+import { Button, Kbd } from "../design-system/primitives";
 
 interface UploadZoneProps {
   onFileUpload: (file: File) => void;
+  variant?: "full" | "compact";
 }
 
 const ACCEPTED_TYPES = new Set([
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/msword', // .doc
-  'text/plain',
-  'text/markdown',
-  'application/epub+zip',
-  'text/csv',
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "text/plain",
+  "text/markdown",
+  "application/epub+zip",
+  "text/csv",
 ]);
 
-const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt', '.md', '.epub', '.csv'];
+const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".doc", ".txt", ".md", ".epub", ".csv"];
 
-function isAcceptedFile(file: File): boolean {
+function isAccepted(file: File): boolean {
   if (ACCEPTED_TYPES.has(file.type)) return true;
-  return ACCEPTED_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext));
+  return ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
 }
 
-export default function UploadZone({ onFileUpload }: UploadZoneProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export default function UploadZone({
+  onFileUpload,
+  variant = "full",
+}: UploadZoneProps) {
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file && isAccepted(file)) onFileUpload(file);
+    },
+    [onFileUpload],
+  );
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && isAcceptedFile(file)) {
-      onFileUpload(file);
-    }
-  }, [onFileUpload]);
-
-  const handleClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       onFileUpload(file);
-      e.target.value = '';
+      e.target.value = "";
     }
   };
 
+  if (variant === "compact") {
+    return (
+      <>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPTED_EXTENSIONS.join(",")}
+          onChange={onSelect}
+          hidden
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          leadingIcon={<Upload size={13} strokeWidth={1.5} />}
+          onClick={() => inputRef.current?.click()}
+          className="w-full justify-center"
+        >
+          Upload paper
+        </Button>
+      </>
+    );
+  }
+
   return (
     <div
-      className={`upload-zone ${isDragging ? 'dragging' : ''}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onClick={handleClick}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={onDrop}
+      onClick={() => inputRef.current?.click()}
+      className={cn(
+        "group flex cursor-pointer flex-col items-center justify-center rounded-md",
+        "border border-dashed px-5 py-8 text-center",
+        "transition-colors duration-base ease-smooth",
+        dragging
+          ? "border-accent bg-accent-soft"
+          : "border-border-strong hover:border-fg-subtle hover:bg-bg-hover",
+      )}
     >
       <input
-        ref={fileInputRef}
+        ref={inputRef}
         type="file"
-        accept={ACCEPTED_EXTENSIONS.join(',')}
-        onChange={handleFileSelect}
+        accept={ACCEPTED_EXTENSIONS.join(",")}
+        onChange={onSelect}
         hidden
       />
-      <div className="upload-icon">
-        <i className="ph ph-cloud-arrow-up" style={{ fontSize: 20 }}></i>
+      <div
+        className={cn(
+          "mb-3 flex h-9 w-9 items-center justify-center rounded-md border",
+          dragging
+            ? "border-accent/40 bg-accent-soft text-accent"
+            : "border-border bg-bg-raised text-fg-muted",
+        )}
+      >
+        <FileUp size={16} strokeWidth={1.5} />
       </div>
-      <p className="upload-text">Drop PDF here to analyze</p>
-      <p className="upload-hint">or click to browse</p>
+      <p className="text-sm font-medium text-fg">Drop a paper here</p>
+      <p className="mt-1 font-mono text-[10px] uppercase tracking-caps text-fg-subtle">
+        pdf · docx · txt · md · epub
+      </p>
+      <p className="mt-3 text-xs text-fg-muted">
+        or click to browse
+      </p>
     </div>
   );
 }

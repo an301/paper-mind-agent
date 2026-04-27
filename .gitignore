@@ -1,3 +1,4 @@
 .env
 .aidesigner/*
 !.aidesigner/.gitkeep
+evaluation/results/

@@ -35,6 +35,459 @@
       ],
       "source": "OneDiffusion, page 7",
       "last_updated": "2026-04-17T01:56:06.869817"
+    },
+    "score-based generative models": {
+      "confidence": 0.6,
+      "prerequisites": [
+        "diffusion model training"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 1",
+      "last_updated": "2026-04-19T20:17:52.248434"
+    },
+    "forward diffusion process design": {
+      "confidence": 0.5,
+      "prerequisites": [
+        "score-based generative models"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 1",
+      "last_updated": "2026-04-19T20:17:54.071107"
+    },
+    "onediffusion experimental evaluation": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "multi-task dataset construction",
+        "variable conditional inputs"
+      ],
+      "source": "OneDiffusion, page 6",
+      "last_updated": "2026-04-20T01:17:45.737081"
+    },
+    "zero task-specific fine-tuning evaluation": {
+      "confidence": 0.6,
+      "prerequisites": [
+        "onediffusion experimental evaluation"
+      ],
+      "source": "OneDiffusion, page 10",
+      "last_updated": "2026-04-20T01:17:45.730504"
+    },
+    "geneval benchmark": {
+      "confidence": 0.5,
+      "prerequisites": [
+        "text-to-image generation"
+      ],
+      "source": "OneDiffusion, page 10",
+      "last_updated": "2026-04-20T01:17:45.734052"
+    },
+    "delete-2max heap operation": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "max heap",
+        "heap operations",
+        "sink operation"
+      ],
+      "source": "Anish Nambirajan, page 3",
+      "last_updated": "2026-04-20T12:32:30.018277"
+    },
+    "psld parameter effects": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "score-based generative models",
+        "forward diffusion process design"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 7",
+      "last_updated": "2026-04-27T00:27:40.240934"
+    },
+    "phase space langevin diffusion": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "score-based generative models",
+        "forward diffusion process design"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 4",
+      "last_updated": "2026-04-27T00:27:56.375330"
+    },
+    "critically damped langevin diffusion": {
+      "confidence": 0.6,
+      "prerequisites": [
+        "score-based generative models"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 4",
+      "last_updated": "2026-04-27T00:27:58.497041"
+    },
+    "critical damping condition": {
+      "confidence": 1.0,
+      "prerequisites": [
+        "phase space langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 4",
+      "last_updated": "2026-04-27T01:20:12.280792"
+    },
+    "next-dit architecture": {
+      "confidence": 0.9,
+      "prerequisites": [
+        "transformer architecture",
+        "diffusion models"
+      ],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T01:00:51.587142"
+    },
+    "3d rope positional encoding": {
+      "confidence": 0.9,
+      "prerequisites": [
+        "positional encoding",
+        "rotary position embedding"
+      ],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T01:00:54.163692"
+    },
+    "sequential view modeling": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "unified diffusion model challenges",
+        "flow matching"
+      ],
+      "source": "OneDiffusion, page 2",
+      "last_updated": "2026-04-27T00:41:47.794408"
+    },
+    "gamma parameter optimization in psld": {
+      "confidence": 0.9,
+      "prerequisites": [
+        "psld parameter effects",
+        "phase space langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 7",
+      "last_updated": "2026-04-27T00:34:34.858166"
+    },
+    "psld vs cld noise injection": {
+      "confidence": 1.0,
+      "prerequisites": [
+        "phase space langevin diffusion",
+        "critically damped langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 4",
+      "last_updated": "2026-04-27T01:20:10.506677"
+    },
+    "transformer architecture": {
+      "confidence": 0.4,
+      "prerequisites": [],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T00:33:49.561925"
+    },
+    "vae tokenizer": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "vae encoding"
+      ],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T00:52:48.921144"
+    },
+    "diffusion models": {
+      "confidence": 0.4,
+      "prerequisites": [],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T00:37:02.383712"
+    },
+    "gamma parameter effects on sample quality": {
+      "confidence": 1.0,
+      "prerequisites": [
+        "gamma parameter optimization in psld",
+        "phase space langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 7",
+      "last_updated": "2026-04-27T01:20:02.838604"
+    },
+    "principled diffusion process design": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "score-based generative models",
+        "forward diffusion process design"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 2",
+      "last_updated": "2026-04-27T00:43:06.505524"
+    },
+    "complete recipe theorems": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "score-based generative models",
+        "forward diffusion process design"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 3",
+      "last_updated": "2026-04-27T00:44:35.299297"
+    },
+    "unified diffusion model challenges": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "diffusion models",
+        "conditional generation"
+      ],
+      "source": "OneDiffusion, page 2",
+      "last_updated": "2026-04-27T00:41:42.940282"
+    },
+    "text-to-image generation": {
+      "confidence": 0.6,
+      "prerequisites": [
+        "diffusion models"
+      ],
+      "source": "OneDiffusion, page 7",
+      "last_updated": "2026-04-27T00:41:48.077840"
+    },
+    "parameter efficiency in diffusion models": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "geneval benchmark",
+        "text-to-image generation"
+      ],
+      "source": "OneDiffusion, page 7",
+      "last_updated": "2026-04-27T00:42:01.687426"
+    },
+    "conditional generation": {
+      "confidence": 0.4,
+      "prerequisites": [
+        "diffusion models"
+      ],
+      "source": "OneDiffusion, page 3",
+      "last_updated": "2026-04-27T00:42:13.533409"
+    },
+    "onediffusion sequential framing": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "sequential view modeling",
+        "unified diffusion model challenges",
+        "flow matching"
+      ],
+      "source": "OneDiffusion, page 3",
+      "last_updated": "2026-04-27T00:45:33.066818"
+    },
+    "positional encoding": {
+      "confidence": 0.4,
+      "prerequisites": [
+        "transformer architecture"
+      ],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T00:42:48.534887"
+    },
+    "rotary position embedding": {
+      "confidence": 0.4,
+      "prerequisites": [
+        "positional encoding"
+      ],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T00:42:50.725023"
+    },
+    "vae encoding": {
+      "confidence": 0.4,
+      "prerequisites": [
+        "diffusion models"
+      ],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T00:42:54.763179"
+    },
+    "psld experimental evaluation": {
+      "confidence": 0.3,
+      "prerequisites": [
+        "phase space langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 2",
+      "last_updated": "2026-04-27T00:43:48.739766"
+    },
+    "onediffusion geneval performance": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "geneval benchmark",
+        "parameter efficiency in diffusion models"
+      ],
+      "source": "OneDiffusion, page 7",
+      "last_updated": "2026-04-27T00:51:36.511520"
+    },
+    "theorem 2.1 convergence guarantee": {
+      "confidence": 0.9,
+      "prerequisites": [
+        "score-based generative models",
+        "forward diffusion process design"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 3",
+      "last_updated": "2026-04-27T00:58:57.543224"
+    },
+    "theorem 2.2 completeness guarantee": {
+      "confidence": 0.9,
+      "prerequisites": [
+        "score-based generative models",
+        "forward diffusion process design"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 3",
+      "last_updated": "2026-04-27T00:58:59.058794"
+    },
+    "three-stage training recipe": {
+      "confidence": 0.3,
+      "prerequisites": [
+        "diffusion model training",
+        "multi-task learning"
+      ],
+      "source": "OneDiffusion, page 5",
+      "last_updated": "2026-04-27T01:20:02.660548"
+    },
+    "onediffusion hardware setup": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "three-stage training recipe"
+      ],
+      "source": "OneDiffusion, page 5",
+      "last_updated": "2026-04-27T00:54:35.842602"
+    },
+    "onediffusion unified approach": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "unified diffusion model challenges",
+        "sequential view modeling"
+      ],
+      "source": "OneDiffusion, page 2",
+      "last_updated": "2026-04-27T00:59:41.080124"
+    },
+    "flow matching": {
+      "confidence": 0.5,
+      "prerequisites": [
+        "diffusion models"
+      ],
+      "source": "OneDiffusion, page 3",
+      "last_updated": "2026-04-27T00:45:30.519792"
+    },
+    "psld speed quality tradeoff": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "phase space langevin diffusion",
+        "critically damped langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 7",
+      "last_updated": "2026-04-27T00:46:19.219640"
+    },
+    "psld experimental datasets": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "phase space langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 2",
+      "last_updated": "2026-04-27T00:47:12.279855"
+    },
+    "multiview generation performance comparison": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "onediffusion experimental evaluation",
+        "variable conditional inputs"
+      ],
+      "source": "OneDiffusion, page 8",
+      "last_updated": "2026-04-27T00:47:40.897432"
+    },
+    "unified training trade-offs": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "multiview generation performance comparison",
+        "depth estimation comparison"
+      ],
+      "source": "OneDiffusion, page 8",
+      "last_updated": "2026-04-27T01:00:24.051428"
+    },
+    "depth estimation comparison": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "onediffusion experimental evaluation"
+      ],
+      "source": "OneDiffusion, page 8",
+      "last_updated": "2026-04-27T00:47:44.951414"
+    },
+    "principled diffusion process design gap": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "score-based generative models",
+        "forward diffusion process design"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 2",
+      "last_updated": "2026-04-27T00:53:01.243415"
+    },
+    "physical intuition limitations in diffusion design": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "principled diffusion process design gap"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 2",
+      "last_updated": "2026-04-27T00:53:03.434508"
+    },
+    "parameter efficiency vs performance scaling": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "onediffusion geneval performance",
+        "parameter efficiency in diffusion models"
+      ],
+      "source": "OneDiffusion, page 7",
+      "last_updated": "2026-04-27T00:51:39.698214"
+    },
+    "onediffusion unified multi-task framing": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "onediffusion sequential framing",
+        "flow matching",
+        "conditional generation"
+      ],
+      "source": "OneDiffusion, page 3",
+      "last_updated": "2026-04-27T00:55:43.253425"
+    },
+    "psld sample quality benchmarks": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "psld experimental datasets",
+        "phase space langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 2",
+      "last_updated": "2026-04-27T00:56:45.641805"
+    },
+    "geneval parameter efficiency comparison": {
+      "confidence": 0.7,
+      "prerequisites": [
+        "onediffusion geneval performance",
+        "parameter efficiency vs performance scaling"
+      ],
+      "source": "OneDiffusion, page 7",
+      "last_updated": "2026-04-27T00:54:55.354445"
+    },
+    "psld cifar-10 performance comparison": {
+      "confidence": 0.9,
+      "prerequisites": [
+        "psld speed quality tradeoff",
+        "phase space langevin diffusion",
+        "critically damped langevin diffusion"
+      ],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 7",
+      "last_updated": "2026-04-27T00:58:26.002563"
+    },
+    "onediffusion robustness vs specialized models": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "unified training trade-offs",
+        "depth estimation comparison"
+      ],
+      "source": "OneDiffusion, page 8",
+      "last_updated": "2026-04-27T01:00:26.166010"
+    },
+    "diffusion model training": {
+      "confidence": 0.4,
+      "prerequisites": [],
+      "source": "A Complete Recipe for Diffusion Generative Models, page 7",
+      "last_updated": "2026-04-27T00:58:24.285286"
+    },
+    "onediffusion multi-view concatenation": {
+      "confidence": 0.8,
+      "prerequisites": [
+        "vae tokenizer",
+        "next-dit architecture"
+      ],
+      "source": "OneDiffusion, page 4",
+      "last_updated": "2026-04-27T01:00:56.614926"
+    },
+    "multi-task learning": {
+      "confidence": 0.4,
+      "prerequisites": [
+        "diffusion model training"
+      ],
+      "source": "OneDiffusion, page 5",
+      "last_updated": "2026-04-27T01:16:43.841781"
     }
   }
 }

@@ -3,13 +3,21 @@ import pymupdf
 
 
 def extract_text_from_pdf(pdf_path):
-    """Extract all text from a PDF file, page by page."""
+    """Extract all text from a PDF file, page by page.
+
+    Returns (full_text, page_starts) where page_starts[i] is the char
+    offset in full_text where page (i+1) begins. page_starts[0] is always 0.
+    page_starts[-1] equals len(full_text). Used for spoiler enforcement —
+    given max_page=N, content past offset page_starts[N] is "beyond" page N.
+    """
     doc = pymupdf.open(pdf_path)
     full_text = ""
+    page_starts = [0]
     for page in doc:
         full_text += page.get_text()
+        page_starts.append(len(full_text))
     doc.close()
-    return full_text
+    return full_text, page_starts
 
 
 def extract_metadata_from_pdf(pdf_path):
@@ -121,22 +129,28 @@ def split_into_sections(full_text):
     matches = list(section_pattern.finditer(full_text))
 
     if not matches:
-        return {"full_text": full_text.strip()}
+        return {"full_text": full_text.strip()}, {"full_text": (0, len(full_text))}
 
     sections = {}
+    offsets = {}
     for i, match in enumerate(matches):
         section_name = match.group().strip()
-        # Clean: remove numbering for cleaner keys
         clean_name = re.sub(r"^(\d+\.?\d*\.?\s+|[IVX]+\.\s+)", "", section_name).strip().lower()
 
-        start = match.end()
+        heading_start = match.start()
+        content_start = match.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(full_text)
 
-        content = full_text[start:end].strip()
+        content = full_text[content_start:end].strip()
         if content:
             sections[clean_name] = content
+            # offsets[name] = (heading_start, end). Use the HEADING position for
+            # visibility checks — if the heading appears on a visible page, the
+            # section is "visible" even if the content technically wraps to the
+            # next page.
+            offsets[clean_name] = (heading_start, end)
 
-    return sections
+    return sections, offsets
 
 
 class PaperStore:
@@ -151,11 +165,10 @@ class PaperStore:
 
     def add_paper(self, paper_id, pdf_path):
         """Parse a PDF and store its sections."""
-        full_text = extract_text_from_pdf(pdf_path)
-        sections = split_into_sections(full_text)
+        full_text, page_starts = extract_text_from_pdf(pdf_path)
+        sections, section_offsets = split_into_sections(full_text)
         metadata = extract_metadata_from_pdf(pdf_path)
 
-        # Extract abstract from sections if present
         abstract = ""
         for key in ("abstract",):
             if key in sections:
@@ -165,7 +178,10 @@ class PaperStore:
         self.papers[paper_id] = {
             "pdf_path": pdf_path,
             "full_text": full_text,
+            "page_starts": page_starts,
+            "num_pages": len(page_starts) - 1,
             "sections": sections,
+            "section_offsets": section_offsets,
             "section_order": list(sections.keys()),
             "read_position": -1,
             "title": metadata["title"],
@@ -180,6 +196,7 @@ class PaperStore:
             "authors": metadata["authors"],
             "num_sections": len(sections),
             "section_names": list(sections.keys()),
+            "num_pages": len(page_starts) - 1,
         }
 
     def get_paper(self, paper_id=None):
